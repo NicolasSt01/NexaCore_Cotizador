@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id           Int         @id @default(autoincrement())
+  name         String
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  role         String      @default("editor")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  quotations   Quotation[]
+
+  @@map("users")
+}
+
+model Client {
+  id            Int         @id @default(autoincrement())
+  businessName  String      @map("business_name")
+  rfc           String      @unique
+  curp          String?
+  email         String?
+  phone         String?
+  addressStreet String?     @map("address_street")
+  addressNumber String?     @map("address_number")
+  addressColony String?     @map("address_colony")
+  city          String?
+  state         String?
+  zipCode       String?     @map("zip_code")
+  taxRegime     String?     @map("tax_regime")
+  cfdiUsage     String?     @map("cfdi_usage")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  quotations    Quotation[]
+
+  @@map("clients")
+}
+
+model Product {
+  id          Int                @id @default(autoincrement())
+  name        String
+  description String?
+  unitPrice   Decimal            @db.Decimal(12, 2) @map("unit_price")
+  taxType     String             @default("iva") @map("tax_type")
+  unit        String             @default("pieza")
+  sku         String             @unique
+  active      Boolean            @default(true)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  items       QuotationItem[]
+
+  @@map("products")
+}
+
+model Quotation {
+  id              Int              @id @default(autoincrement())
+  folio           String           @unique
+  clientId        Int              @map("client_id")
+  userId          Int              @map("user_id")
+  status          String           @default("borrador")
+  issueDate       DateTime         @default(now()) @map("issue_date")
+  validUntil      DateTime?        @map("valid_until")
+  paymentTerms    String?          @map("payment_terms")
+  deliveryTerms   String?          @map("delivery_terms")
+  notes           String?
+  termsConditions String?          @map("terms_conditions")
+  subtotal        Decimal          @default(0) @db.Decimal(14, 2)
+  discountPercent Decimal          @default(0) @db.Decimal(5, 2) @map("discount_percent")
+  discountAmount  Decimal          @default(0) @db.Decimal(14, 2) @map("discount_amount")
+  ivaAmount       Decimal          @default(0) @db.Decimal(14, 2) @map("iva_amount")
+  isrRetencion    Decimal          @default(0) @db.Decimal(14, 2) @map("isr_retencion")
+  ivaRetencion    Decimal          @default(0) @db.Decimal(14, 2) @map("iva_retencion")
+  total           Decimal          @default(0) @db.Decimal(14, 2)
+  publicHash      String?          @unique @map("public_hash")
+  currency        String           @default("MXN")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  client          Client           @relation(fields: [clientId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+  items           QuotationItem[]
+  invoice         Invoice?
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id              Int        @id @default(autoincrement())
+  quotationId     Int        @map("quotation_id")
+  productId       Int?       @map("product_id")
+  concept         String
+  description     String?
+  quantity        Int
+  unit            String     @default("pieza")
+  unitPrice       Decimal    @db.Decimal(12, 2) @map("unit_price")
+  discountPercent Decimal    @default(0) @db.Decimal(5, 2) @map("discount_percent")
+  subtotal        Decimal    @db.Decimal(14, 2)
+  iva             Decimal    @default(0) @db.Decimal(14, 2)
+  total           Decimal    @db.Decimal(14, 2)
+  sortOrder       Int        @default(0) @map("sort_order")
+  quotation       Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product         Product?   @relation(fields: [productId], references: [id])
+
+  @@map("quotation_items")
+}
+
+model Invoice {
+  id            Int        @id @default(autoincrement())
+  quotationId   Int        @unique @map("quotation_id")
+  folio         String     @unique
+  status        String     @default("pendiente")
+  subtotal      Decimal    @db.Decimal(14, 2)
+  iva           Decimal    @db.Decimal(14, 2)
+  retenciones   Decimal    @db.Decimal(14, 2)
+  total         Decimal    @db.Decimal(14, 2)
+  issueDate     DateTime   @default(now()) @map("issue_date")
+  paymentDate   DateTime?  @map("payment_date")
+  pdfPath       String?    @map("pdf_path")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  quotation     Quotation  @relation(fields: [quotationId], references: [id])
+
+  @@map("invoices")
+}
+
+model CompanySettings {
+  id                Int      @id @default(autoincrement())
+  businessName      String   @map("business_name")
+  rfc               String
+  curp              String?
+  taxRegime         String?  @map("tax_regime")
+  addressStreet     String?  @map("address_street")
+  addressNumber     String?  @map("address_number")
+  addressColony     String?  @map("address_colony")
+  city              String?
+  state             String?
+  zipCode           String?  @map("zip_code")
+  logoPath          String?  @map("logo_path")
+  email             String?
+  phone             String?
+  website           String?
+  ivaRate           Decimal  @default(0.16) @db.Decimal(5, 4) @map("iva_rate")
+  isrRetencionRate  Decimal  @default(0.10) @db.Decimal(5, 4) @map("isr_retencion_rate")
+  ivaRetencionRate  Decimal  @default(0.106666) @db.Decimal(8, 6) @map("iva_retencion_rate")
+  defaultTerms      String?  @map("default_terms")
+  defaultNotes      String?  @map("default_notes")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("company_settings")
+}

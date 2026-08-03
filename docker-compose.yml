@@ -27,7 +27,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Puerto del HOST configurable: en un Dokploy con varios servicios, fijar
+      # el 3000 choca con el primero que ya lo tomó. Dentro del contenedor la
+      # app siempre escucha en 3000. Si enrutas por dominio con Traefik, puedes
+      # borrar este bloque entero: Traefik llega por la red interna de Docker.
+      - "${APP_PORT:-3033}:3000"
     environment:
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-password}@db:3306/${MYSQL_DATABASE:-nexacore_cotizador}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production}

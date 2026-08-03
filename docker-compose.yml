@@ -48,6 +48,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      # `default` es la red del proyecto, por donde la app llega a `db`.
+      # Al declarar `networks` hay que listarla explícitamente o se pierde.
+      - default
+      # Traefik corre en `dokploy-network`. Sin unir la app a esa red, Traefik
+      # tiene la ruta del dominio pero no alcanza el contenedor: eso es el 502.
+      - dokploy-network
 
 volumes:
   db_data:
+
+networks:
+  # La crea Dokploy al instalarse; aquí solo se referencia.
+  dokploy-network:
+    external: true

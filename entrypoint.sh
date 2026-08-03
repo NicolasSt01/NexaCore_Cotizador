@@ -6,6 +6,21 @@ TSX="/app/node_modules/.bin/tsx"
 
 # Segunda red de seguridad además del healthcheck del compose: en el primer
 # despliegue MariaDB puede tardar en aceptar conexiones aunque ya esté "healthy".
+# Muestra a qué se está conectando de verdad, con la contraseña oculta. Sirve
+# para ver si la interpolación del compose funcionó: si aquí aparecen comillas
+# o el host es "localhost", el problema está en las variables, no en la base.
+echo "Conectando a: $(printf '%s' "$DATABASE_URL" | sed 's#://\([^:]*\):[^@]*@#://\1:***@#')"
+
+# Comillas dentro de la URL significan que el panel guardó el valor con ellas.
+# MariaDB grabaría la contraseña incluyendo las comillas y el cliente las
+# mandaría distinto: mismo valor aparente, autenticación fallida.
+case "$DATABASE_URL" in
+  *'"'*|*"'"*)
+    echo "AVISO: DATABASE_URL contiene comillas. Quita las comillas del valor" >&2
+    echo "       de MYSQL_ROOT_PASSWORD en las variables de Dokploy." >&2
+    ;;
+esac
+
 echo "Esperando a la base de datos..."
 INTENTOS=60
 ERRLOG=/tmp/db-wait.log

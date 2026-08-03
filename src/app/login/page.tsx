@@ -1,6 +1,6 @@
 "use client"
 
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import Link from "next/link"
@@ -27,10 +27,27 @@ function LoginForm() {
     if (result?.error) {
       setError("Credenciales inválidas")
       setLoading(false)
-    } else {
-      router.push(callbackUrl)
-      router.refresh()
+      return
     }
+
+    // Que las credenciales sean válidas no garantiza que el navegador haya
+    // guardado la cookie de sesión. Si NEXTAUTH_URL empieza con https, NextAuth
+    // marca la cookie como Secure y el navegador la descarta al entrar por http
+    // (por IP y puerto, por ejemplo). Sin esta comprobación el formulario se
+    // quedaba en "Entrando..." para siempre, sin decir por qué.
+    const session = await getSession()
+    if (!session) {
+      setError(
+        "Las credenciales son correctas, pero el navegador no guardó la sesión. " +
+          "Suele ocurrir al entrar por HTTP mientras NEXTAUTH_URL usa https. " +
+          "Entra por la URL con https."
+      )
+      setLoading(false)
+      return
+    }
+
+    router.push(callbackUrl)
+    router.refresh()
   }
 
   return (

@@ -1,8 +1,18 @@
 #!/bin/sh
 set -e
 
-PRISMA="/app/node_modules/.bin/prisma"
-TSX="/app/node_modules/.bin/tsx"
+TOOLS_DIR="${TOOLS_DIR:-/opt/tools}"
+PRISMA="$TOOLS_DIR/node_modules/.bin/prisma"
+TSX="$TOOLS_DIR/node_modules/.bin/tsx"
+
+# Comprobación previa: fallar aquí con un mensaje claro es mejor que hacerlo a
+# medio arranque, después de haber aplicado migraciones.
+for bin in "$PRISMA" "$TSX"; do
+  if [ ! -x "$bin" ]; then
+    echo "No se encuentra $bin. La imagen se construyó mal." >&2
+    exit 1
+  fi
+done
 
 # Segunda red de seguridad además del healthcheck del compose: en el primer
 # despliegue MariaDB puede tardar en aceptar conexiones aunque ya esté "healthy".

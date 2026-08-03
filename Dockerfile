@@ -28,12 +28,22 @@ ENV npm_config_cache=/tmp/.npm
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Dependencias de producción + CLI de Prisma y tsx: se necesitan para correr las
-# migraciones y el seed al arrancar el contenedor.
+# Dependencias de producción de la app.
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --no-audit --no-fund \
- && npm install --no-save --no-audit --no-fund prisma tsx \
- && npm cache clean --force
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+
+# Las herramientas de arranque (migraciones y seed) van en un prefijo aparte.
+# Antes se instalaban en /app/node_modules, pero el COPY de .next/standalone
+# de más abajo trae su propio node_modules y las pisaba: por eso `tsx` acababa
+# "not found" en tiempo de ejecución. En /opt/tools nada las sobrescribe.
+ENV TOOLS_DIR=/opt/tools
+RUN mkdir -p "$TOOLS_DIR" \
+ && cd "$TOOLS_DIR" \
+ && npm init -y >/dev/null \
+ && npm install --no-audit --no-fund prisma tsx \
+ && npm cache clean --force \
+ && "$TOOLS_DIR/node_modules/.bin/prisma" --version >/dev/null \
+ && "$TOOLS_DIR/node_modules/.bin/tsx" --version >/dev/null
 
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./

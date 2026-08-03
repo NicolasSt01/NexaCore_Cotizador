@@ -5,13 +5,14 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  BarController,
   BarElement,
   Title,
   Tooltip,
 } from "chart.js"
 import { useTheme } from "next-themes"
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip)
+ChartJS.register(CategoryScale, LinearScale, BarController, BarElement, Title, Tooltip)
 
 interface Props {
   data: { status: string; count: number }[]

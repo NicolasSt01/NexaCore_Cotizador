@@ -80,18 +80,30 @@
   --ink-50: #121C30;
   --ink-0: #03060F;
 
+  /* Los tonos claros del acento sirven como texto sobre fondo oscuro, pero sobre
+     blanco quedan en 2.3:1 (el mínimo legible es 4.5:1). En modo claro se
+     sustituyen por los tonos oscuros del mismo acento: 5.8:1 y 10.8:1.
+     Solo se usan como color de texto, así que esto no altera ningún fondo. */
+  --signal-400: #006C99;
+  --signal-300: #004166;
+
   --text-primary: #03060F;
   --text-secondary: #1F3A78;
   --text-tertiary: #5C6B84;
-  --text-muted: #7A8AA3;
+  /* #7A8AA3 rinde 4.85:1 sobre la tarjeta oscura pero solo 3.50:1 sobre la
+     blanca. Este tono deja el modo claro a la par (4.75:1). */
+  --text-muted: #667488;
 
   --line-subtle: rgba(3, 6, 15, 0.06);
   --line: rgba(3, 6, 15, 0.10);
   --line-strong: rgba(3, 6, 15, 0.16);
 
-  --surface-raised: var(--ink-0);
-  --surface-overlay: var(--ink-50);
-  --surface-card: var(--ink-0);
+  /* OJO: en modo claro la escala de ink está invertida respecto a :root, así que
+     --ink-0 aquí es casi negro (#03060F) y --ink-1000 es blanco. Las superficies
+     claras deben apuntar al extremo alto de la escala, no al bajo. */
+  --surface-raised: var(--ink-1000);
+  --surface-overlay: var(--ink-1000);
+  --surface-card: var(--ink-1000);
   --surface-sidebar: var(--ink-950);
   --surface-header: rgba(255, 255, 255, 0.85);
 
@@ -100,11 +112,64 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
+/* Tailwind v4 solo genera utilidades (bg-*, text-*, border-*) para tokens
+   registrados aquí. Los `--ink-*`, `--signal-*`, etc. de :root son CSS puro y
+   por sí solos NO producen ninguna clase. Se mapean con `inline` para que las
+   utilidades emitan `var(--token)` y el override de `.light` siga funcionando. */
 @theme inline {
   --color-background: var(--ink-1000);
   --color-foreground: var(--text-primary);
+
+  --color-ink-1000: var(--ink-1000);
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-850: var(--ink-850);
+  --color-ink-800: var(--ink-800);
+  --color-ink-700: var(--ink-700);
+  --color-ink-600: var(--ink-600);
+  --color-ink-500: var(--ink-500);
+  --color-ink-400: var(--ink-400);
+  --color-ink-300: var(--ink-300);
+  --color-ink-200: var(--ink-200);
+  --color-ink-100: var(--ink-100);
+  --color-ink-50: var(--ink-50);
+  --color-ink-0: var(--ink-0);
+
+  --color-signal-950: var(--signal-950);
+  --color-signal-900: var(--signal-900);
+  --color-signal-800: var(--signal-800);
+  --color-signal-700: var(--signal-700);
+  --color-signal-600: var(--signal-600);
+  --color-signal-500: var(--signal-500);
+  --color-signal-400: var(--signal-400);
+  --color-signal-300: var(--signal-300);
+  --color-signal-200: var(--signal-200);
+  --color-signal-100: var(--signal-100);
+  --color-signal-50: var(--signal-50);
+
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-orange: var(--orange);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+
+  --color-line-subtle: var(--line-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-card: var(--surface-card);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-surface-header: var(--surface-header);
+
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-body: var(--font-body);
 }
 
 body {

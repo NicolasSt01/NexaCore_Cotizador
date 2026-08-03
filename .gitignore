@@ -40,6 +40,12 @@ yarn-error.log*
 # graphify output
 graphify-out/
 
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # generated
 src/generated/
 

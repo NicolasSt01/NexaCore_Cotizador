@@ -42,10 +42,28 @@ interface QuotationDetail {
   createdAt: string
   validUntil: string | null
   publicHash: string | null
+  applyIsrRetencion: boolean
+  applyIvaRetencion: boolean
+  pdfShowSubtotal: boolean
+  pdfShowDiscount: boolean
+  pdfShowIva: boolean
+  pdfShowRetenciones: boolean
   client: { id: number; businessName: string; rfc: string; email?: string | null }
   items: QuotationItem[]
   invoice?: { id: number; folio: string } | null
 }
+
+const PDF_TOGGLES = [
+  { field: "pdfShowSubtotal", label: "Subtotal" },
+  { field: "pdfShowDiscount", label: "Descuento" },
+  { field: "pdfShowIva", label: "IVA" },
+  { field: "pdfShowRetenciones", label: "Retenciones" },
+] as const
+
+const RETENCION_TOGGLES = [
+  { field: "applyIsrRetencion", label: "Retener ISR" },
+  { field: "applyIvaRetencion", label: "Retener IVA" },
+] as const
 
 const statusBadge: Record<string, "green" | "yellow" | "blue" | "red" | "gray" | "orange"> = {
   borrador: "gray", enviada: "blue", vista: "orange",
@@ -59,6 +77,20 @@ export default function CotizacionDetallePage() {
   const [loading, setLoading] = useState(true)
   const [qrUrl, setQrUrl] = useState("")
   const [showEmail, setShowEmail] = useState(false)
+  const [company, setCompany] = useState<{
+    businessName?: string
+    rfc?: string
+    logoData?: string | null
+    logoHeight?: number
+    brandName?: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setCompany)
+      .catch(() => setCompany(null))
+  }, [])
 
   async function load() {
     const r = await fetch(`/api/quotations/${id}`)
@@ -73,6 +105,25 @@ export default function CotizacionDetallePage() {
   }
 
   useEffect(() => { load() }, [id])
+
+  const [updating, setUpdating] = useState(false)
+
+  /** Cambiar una retención obliga al servidor a recalcular el total. */
+  async function patch(field: string, value: boolean) {
+    setUpdating(true)
+    const r = await fetch(`/api/quotations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    })
+    if (r.ok) {
+      await load()
+    } else {
+      const err = await r.json()
+      alert(err.error || "No se pudo actualizar")
+    }
+    setUpdating(false)
+  }
 
   async function handleConvertInvoice() {
     if (!confirm("¿Convertir esta cotización a factura?")) return
@@ -141,7 +192,17 @@ export default function CotizacionDetallePage() {
               validUntil: data.validUntil ?? undefined,
               createdAt: data.createdAt,
               publicHash: data.publicHash ?? undefined,
+              discountAmount: Number(data.discountAmount),
+              pdfShowSubtotal: data.pdfShowSubtotal,
+              pdfShowDiscount: data.pdfShowDiscount,
+              pdfShowIva: data.pdfShowIva,
+              pdfShowRetenciones: data.pdfShowRetenciones,
             }}
+            companyName={company?.businessName}
+            companyRfc={company?.rfc}
+            companyLogo={company?.logoData}
+            companyLogoHeight={company?.logoHeight}
+            brandName={company?.brandName}
           />
         )}
         {data.publicHash && (
@@ -154,6 +215,50 @@ export default function CotizacionDetallePage() {
             Convertir a factura
           </Button>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <p className="text-xs text-text-muted uppercase font-semibold mb-1">Retenciones</p>
+          <p className="text-xs text-text-muted mb-3">
+            Al cambiarlas se recalcula el total de la cotización.
+          </p>
+          <div className="space-y-2">
+            {RETENCION_TOGGLES.map((t) => (
+              <label key={t.field} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  disabled={updating}
+                  checked={data[t.field]}
+                  onChange={(e) => patch(t.field, e.target.checked)}
+                  className="w-4 h-4 accent-signal-600"
+                />
+                <span className="text-sm text-text-secondary">{t.label}</span>
+              </label>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <p className="text-xs text-text-muted uppercase font-semibold mb-1">Desglose en el PDF</p>
+          <p className="text-xs text-text-muted mb-3">
+            Qué renglones se imprimen. El total siempre aparece.
+          </p>
+          <div className="space-y-2">
+            {PDF_TOGGLES.map((t) => (
+              <label key={t.field} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  disabled={updating}
+                  checked={data[t.field]}
+                  onChange={(e) => patch(t.field, e.target.checked)}
+                  className="w-4 h-4 accent-signal-600"
+                />
+                <span className="text-sm text-text-secondary">{t.label}</span>
+              </label>
+            ))}
+          </div>
+        </Card>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

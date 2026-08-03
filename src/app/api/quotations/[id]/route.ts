@@ -1,6 +1,39 @@
 import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
+import { getTaxRates, calculateQuotationTotals } from "@/lib/taxes"
+
+/**
+ * Recalcula retenciones y total de una cotización existente a partir de las
+ * partidas ya guardadas. Devuelve null si la cotización no existe.
+ */
+async function recalculate(
+  id: number,
+  applyIsrRetencion?: boolean,
+  applyIvaRetencion?: boolean
+) {
+  const current = await prisma.quotation.findUnique({
+    where: { id },
+    include: { items: true },
+  })
+  if (!current) return null
+
+  const rates = await getTaxRates()
+
+  const items = current.items.map((i) => ({
+    quantity: i.quantity,
+    unitPrice: Number(i.unitPrice),
+    discountPercent: Number(i.discountPercent),
+    subtotal: Number(i.subtotal),
+    iva: Number(i.iva),
+    total: Number(i.total),
+  }))
+
+  return calculateQuotationTotals(items, Number(current.discountPercent), rates, {
+    applyIsrRetencion: applyIsrRetencion ?? current.applyIsrRetencion,
+    applyIvaRetencion: applyIvaRetencion ?? current.applyIvaRetencion,
+  })
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -46,6 +79,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
+  // Cambiar las retenciones altera el total, así que hay que recalcular a partir
+  // de las partidas ya guardadas.
+  let totals: Awaited<ReturnType<typeof recalculate>> = null
+
+  if (data.applyIsrRetencion !== undefined || data.applyIvaRetencion !== undefined) {
+    totals = await recalculate(
+      Number(id),
+      data.applyIsrRetencion,
+      data.applyIvaRetencion
+    )
+    if (!totals) return NextResponse.json({ error: "No encontrado" }, { status: 404 })
+  }
+
   const quotation = await prisma.quotation.update({
     where: { id: Number(id) },
     data: {
@@ -54,6 +100,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       deliveryTerms: data.deliveryTerms,
       notes: data.notes,
       termsConditions: data.termsConditions,
+      applyIsrRetencion: data.applyIsrRetencion,
+      applyIvaRetencion: data.applyIvaRetencion,
+      pdfShowSubtotal: data.pdfShowSubtotal,
+      pdfShowDiscount: data.pdfShowDiscount,
+      pdfShowIva: data.pdfShowIva,
+      pdfShowRetenciones: data.pdfShowRetenciones,
+      ...(totals && {
+        isrRetencion: totals.isrRetencion,
+        ivaRetencion: totals.ivaRetencion,
+        total: totals.total,
+      }),
     },
   })
 

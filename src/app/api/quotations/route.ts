@@ -49,7 +49,13 @@ export async function POST(req: Request) {
     )
   )
 
-  const totals = calculateQuotationTotals(items, Number(data.discountPercent || 0), rates)
+  const applyIsrRetencion = Boolean(data.applyIsrRetencion)
+  const applyIvaRetencion = Boolean(data.applyIvaRetencion)
+
+  const totals = calculateQuotationTotals(items, Number(data.discountPercent || 0), rates, {
+    applyIsrRetencion,
+    applyIvaRetencion,
+  })
 
   const quotation = await prisma.quotation.create({
     data: {
@@ -70,6 +76,12 @@ export async function POST(req: Request) {
       isrRetencion: totals.isrRetencion,
       ivaRetencion: totals.ivaRetencion,
       total: totals.total,
+      applyIsrRetencion,
+      applyIvaRetencion,
+      pdfShowSubtotal: data.pdfShowSubtotal ?? true,
+      pdfShowDiscount: data.pdfShowDiscount ?? true,
+      pdfShowIva: data.pdfShowIva ?? true,
+      pdfShowRetenciones: data.pdfShowRetenciones ?? true,
       currency: data.currency || "MXN",
       items: {
         create: data.items.map((item: Record<string, unknown>, idx: number) => ({

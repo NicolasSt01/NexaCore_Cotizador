@@ -76,6 +76,18 @@ model Quotation {
   isrRetencion    Decimal          @default(0) @db.Decimal(14, 2) @map("isr_retencion")
   ivaRetencion    Decimal          @default(0) @db.Decimal(14, 2) @map("iva_retencion")
   total           Decimal          @default(0) @db.Decimal(14, 2)
+
+  // Las retenciones solo aplican cuando una persona física factura a una moral,
+  // por eso van apagadas salvo que se activen explícitamente en la cotización.
+  applyIsrRetencion Boolean        @default(false) @map("apply_isr_retencion")
+  applyIvaRetencion Boolean        @default(false) @map("apply_iva_retencion")
+
+  // Qué renglones del desglose se imprimen en el PDF.
+  pdfShowSubtotal    Boolean       @default(true) @map("pdf_show_subtotal")
+  pdfShowDiscount    Boolean       @default(true) @map("pdf_show_discount")
+  pdfShowIva         Boolean       @default(true) @map("pdf_show_iva")
+  pdfShowRetenciones Boolean       @default(true) @map("pdf_show_retenciones")
+
   publicHash      String?          @unique @map("public_hash")
   currency        String           @default("MXN")
   createdAt       DateTime         @default(now()) @map("created_at")
@@ -139,6 +151,21 @@ model CompanySettings {
   state             String?
   zipCode           String?  @map("zip_code")
   logoPath          String?  @map("logo_path")
+
+  // El logo se guarda como data URI ("data:image/png;base64,...") en vez de como
+  // archivo: html2canvas contamina el canvas al rasterizar imágenes de otro
+  // origen y el PDF fallaría, y el contenedor de Dokploy no tiene volumen
+  // persistente donde sobreviviría un archivo subido.
+  logoData          String?  @db.LongText @map("logo_data")
+  /** Alto en px con el que se imprime el logo en el PDF. */
+  logoHeight        Int      @default(48) @map("logo_height")
+
+  /**
+   * Nombre corto de marca para el logotipo del PDF ("NexaCore"), distinto de la
+   * razón social fiscal. Vacío = no se imprime el logotipo de texto.
+   */
+  brandName         String?  @map("brand_name")
+
   email             String?
   phone             String?
   website           String?

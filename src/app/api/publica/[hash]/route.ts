@@ -26,7 +26,13 @@ export async function GET(
     })
   }
 
-  return NextResponse.json(quotation)
+  // Este endpoint es público: se expone solo la marca (nombre y logo), nunca las
+  // tasas ni el resto de los datos fiscales de la empresa.
+  const settings = await prisma.companySettings.findFirst({
+    select: { businessName: true, brandName: true, logoData: true, logoHeight: true },
+  })
+
+  return NextResponse.json({ ...quotation, company: settings })
 }
 
 export async function PATCH(

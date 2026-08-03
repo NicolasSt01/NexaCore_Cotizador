@@ -83,18 +83,31 @@ export interface QuotationTotals {
   total: number
 }
 
+export interface RetencionOptions {
+  /** Retención de ISR (10%). Solo aplica si una persona física factura a una moral. */
+  applyIsrRetencion?: boolean
+  /** Retención de IVA (dos terceras partes del IVA trasladado). Mismo supuesto. */
+  applyIvaRetencion?: boolean
+}
+
 export function calculateQuotationTotals(
   items: TaxCalculationResult[],
   discountPercent: number,
-  rates?: TaxRates
+  rates?: TaxRates,
+  options: RetencionOptions = {}
 ): QuotationTotals {
   const r = rates ?? DEFAULT_RATES
   const itemsSubtotal = items.reduce((sum, i) => sum + i.subtotal, 0)
   const discountAmount = itemsSubtotal * (discountPercent / 100)
   const subtotal = itemsSubtotal - discountAmount
   const ivaAmount = items.reduce((sum, i) => sum + i.iva, 0) * (1 - discountPercent / 100)
-  const isrRetencion = subtotal * r.isrRetencionRate
-  const ivaRetencion = ivaAmount * (r.ivaRetencionRate / r.ivaRate)
+
+  // Por defecto no se retiene nada: el total es subtotal + IVA.
+  const isrRetencion = options.applyIsrRetencion ? subtotal * r.isrRetencionRate : 0
+  const ivaRetencion = options.applyIvaRetencion
+    ? ivaAmount * (r.ivaRetencionRate / r.ivaRate)
+    : 0
+
   const total = subtotal + ivaAmount - isrRetencion - ivaRetencion
 
   return {
@@ -113,6 +126,8 @@ export function generateFolio(prefix: string = "COT", year: number = new Date().
   const random = Math.floor(Math.random() * 9000) + 1000
   return `${prefix}-${year}-${random}`
 }
+
+export { RFC_PUBLICO_GENERAL, RFC_EXTRANJERO } from "@/types"
 
 const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/
 

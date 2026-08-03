@@ -23,16 +23,32 @@ interface Props {
   onSave: () => void
   onSend: () => void
   saving: boolean
+  ivaRate: number
+  isrRate: number
+  ivaRetencionRate: number
+  applyIsrRetencion: boolean
+  applyIvaRetencion: boolean
 }
+
+const money = (n: number) =>
+  `$${n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export function WizardPreview({
   clientName, clientRfc, items, paymentTerms, deliveryTerms,
   notes, termsConditions, onSave, onSend, saving,
+  ivaRate, isrRate, ivaRetencionRate, applyIsrRetencion, applyIvaRetencion,
 }: Props) {
+  // Debe reflejar exactamente lo que calcula el servidor en calculateQuotationTotals,
+  // si no la vista previa y la cotización guardada muestran totales distintos.
   const filteredItems = items.filter((i) => i.concept)
   const subtotal = filteredItems.reduce((s, i) => s + i.quantity * i.unitPrice * (1 - i.discountPercent / 100), 0)
-  const iva = filteredItems.reduce((s, i) => s + (i.taxType !== "exento" ? i.quantity * i.unitPrice * (1 - i.discountPercent / 100) * 0.16 : 0), 0)
-  const total = subtotal + iva
+  const iva = filteredItems.reduce(
+    (s, i) => s + (i.taxType !== "exento" ? i.quantity * i.unitPrice * (1 - i.discountPercent / 100) * ivaRate : 0),
+    0
+  )
+  const isrRetencion = applyIsrRetencion ? subtotal * isrRate : 0
+  const ivaRetencion = applyIvaRetencion ? iva * (ivaRetencionRate / ivaRate) : 0
+  const total = subtotal + iva - isrRetencion - ivaRetencion
 
   return (
     <div className="space-y-6">
@@ -67,15 +83,27 @@ export function WizardPreview({
           <div className="pt-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-text-muted">Subtotal</span>
-              <span className="font-mono">${subtotal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+              <span className="font-mono">{money(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-text-muted">IVA (16%)</span>
-              <span className="font-mono">${iva.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+              <span className="text-text-muted">IVA ({(ivaRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span>
+              <span className="font-mono">{money(iva)}</span>
             </div>
+            {isrRetencion > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-text-muted">Retención ISR</span>
+                <span className="font-mono text-red">-{money(isrRetencion)}</span>
+              </div>
+            )}
+            {ivaRetencion > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-text-muted">Retención IVA</span>
+                <span className="font-mono text-red">-{money(ivaRetencion)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-semibold pt-2 border-t border-line">
               <span className="text-text-primary">Total</span>
-              <span className="font-mono text-signal-400">${total.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+              <span className="font-mono text-signal-400">{money(total)}</span>
             </div>
           </div>
         </div>

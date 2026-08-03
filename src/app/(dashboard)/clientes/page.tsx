@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Modal } from "@/components/ui/Modal"
 import { Input } from "@/components/ui/Input"
+import { PUBLICO_GENERAL } from "@/types"
 
 interface Client {
   id: number
@@ -115,6 +116,19 @@ export default function ClientesPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo cliente">
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed border-line">
+            <p className="text-xs text-text-muted">
+              ¿Venta de mostrador sin datos fiscales?
+            </p>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, ...PUBLICO_GENERAL })}
+              className="shrink-0 px-3 py-1.5 rounded-md text-xs font-medium text-signal-400 border border-signal-500/40 hover:bg-signal-600/10 transition-colors"
+            >
+              Usar Público General
+            </button>
+          </div>
+
           <Input label="RFC" value={form.rfc} onChange={(e) => setForm({ ...form, rfc: e.target.value })} required placeholder="XXX000101XXX" />
           <Input label="Razón Social" value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} required />
           <div className="grid grid-cols-2 gap-4">

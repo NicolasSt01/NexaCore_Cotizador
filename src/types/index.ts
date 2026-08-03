@@ -19,6 +19,20 @@ declare module "next-auth/jwt" {
   }
 }
 
+/** RFC genérico del SAT para operaciones con público en general. */
+export const RFC_PUBLICO_GENERAL = "XAXX010101000"
+
+/** RFC genérico del SAT para residentes en el extranjero. */
+export const RFC_EXTRANJERO = "XEXX010101000"
+
+/** Prellenado del cliente de mostrador (sin datos fiscales). */
+export const PUBLICO_GENERAL = {
+  businessName: "Público General",
+  rfc: RFC_PUBLICO_GENERAL,
+  taxRegime: "616 - Sin obligaciones fiscales",
+  cfdiUsage: "S01 - Sin efectos fiscales",
+}
+
 export interface QuotationStatus {
   value: string
   label: string

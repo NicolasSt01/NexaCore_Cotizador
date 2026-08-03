@@ -5,6 +5,7 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LineController,
   PointElement,
   LineElement,
   Title,
@@ -13,7 +14,7 @@ import {
 } from "chart.js"
 import { useTheme } from "next-themes"
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Filler)
+ChartJS.register(CategoryScale, LinearScale, LineController, PointElement, LineElement, Title, Tooltip, Filler)
 
 interface MonthlyData {
   month: string

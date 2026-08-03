@@ -22,6 +22,18 @@ interface PublicQuotation {
   createdAt: string
   client: { businessName: string; rfc: string }
   items: { concept: string; quantity: number; unit: string; unitPrice: string; subtotal: string; total: string }[]
+  company?: {
+    businessName: string
+    brandName: string | null
+    logoData: string | null
+    logoHeight: number
+  } | null
+}
+
+/** "NexaCore" → ["Nexa", "Core"]; mismo criterio que el logotipo del PDF. */
+function splitWordmark(name: string): [string, string] {
+  const m = name.match(/^(.*?[a-záéíóúñ])([A-ZÁÉÍÓÚÑ].*)$/)
+  return m ? [m[1], m[2]] : [name, ""]
 }
 
 export default function PublicaPage() {
@@ -86,10 +98,46 @@ export default function PublicaPage() {
       <div className="max-w-3xl mx-auto space-y-8">
         <div className="text-center">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-signal-600 flex items-center justify-center">
-              <span className="text-sm font-bold text-white">N</span>
-            </div>
-            <span className="text-xl font-bold text-text-primary">NexaCore</span>
+            {data.company?.logoData && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={data.company.logoData}
+                alt={data.company.brandName ?? data.company.businessName}
+                style={{ height: `${data.company.logoHeight || 48}px`, width: "auto", maxWidth: "220px", objectFit: "contain" }}
+              />
+            )}
+
+            {data.company?.brandName?.trim() ? (
+              <span
+                className="text-text-primary"
+                style={{
+                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontWeight: 700,
+                  fontSize: "30px",
+                  letterSpacing: "-0.03em",
+                  fontVariationSettings: "'opsz' 18",
+                  lineHeight: 1,
+                }}
+              >
+                {splitWordmark(data.company.brandName.trim())[0]}
+                <span className="text-signal-400">
+                  {splitWordmark(data.company.brandName.trim())[1]}
+                </span>
+              </span>
+            ) : (
+              !data.company?.logoData && (
+                <>
+                  <div className="w-10 h-10 rounded-xl bg-signal-600 flex items-center justify-center">
+                    <span className="text-sm font-bold text-white">
+                      {(data.company?.businessName ?? "NexaCore").charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-xl font-bold text-text-primary">
+                    {data.company?.businessName ?? "NexaCore"}
+                  </span>
+                </>
+              )
+            )}
           </div>
           <h1 className="text-2xl font-semibold text-text-primary font-mono">{data.folio}</h1>
           <p className="text-text-muted mt-1">Cotización</p>

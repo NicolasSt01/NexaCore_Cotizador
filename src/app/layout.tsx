@@ -3,9 +3,13 @@ import { DM_Sans, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google"
 import { Providers } from "@/components/Providers"
 import "./globals.css"
 
+// El eje `opsz` no se incluye por defecto en las fuentes variables de next/font.
+// Sin él, el `font-variation-settings:'opsz' 18` del logotipo no surte efecto y
+// la marca no coincide con el material de Canva.
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
+  axes: ["opsz"],
 })
 
 const plusJakarta = Plus_Jakarta_Sans({

@@ -34,13 +34,34 @@ export default function NuevaCotizacionPage() {
   const [deliveryTerms, setDeliveryTerms] = useState("")
   const [notes, setNotes] = useState("")
   const [termsConditions, setTermsConditions] = useState("")
+  const [applyIsrRetencion, setApplyIsrRetencion] = useState(false)
+  const [applyIvaRetencion, setApplyIvaRetencion] = useState(false)
+
+  // Las tasas vienen de Configuración; sin ellas la vista previa mostraría un
+  // total distinto al que calcula el servidor al guardar.
+  const [rates, setRates] = useState({ ivaRate: 0.16, isrRate: 0.1, ivaRetencionRate: 0.106666 })
 
   const loadClients = useCallback(async () => {
     const res = await fetch("/api/clients")
     if (res.ok) setClients(await res.json())
   }, [])
 
+  const loadSettings = useCallback(async () => {
+    const res = await fetch("/api/settings")
+    if (!res.ok) return
+    const s = await res.json()
+    if (!s) return
+    setRates({
+      ivaRate: Number(s.ivaRate ?? 0.16),
+      isrRate: Number(s.isrRetencionRate ?? 0.1),
+      ivaRetencionRate: Number(s.ivaRetencionRate ?? 0.106666),
+    })
+    setNotes((n) => n || s.defaultNotes || "")
+    setTermsConditions((t) => t || s.defaultTerms || "")
+  }, [])
+
   useEffect(() => { loadClients() }, [loadClients])
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   const filteredClients = clients.filter(
     (c) =>
@@ -64,6 +85,8 @@ export default function NuevaCotizacionPage() {
           deliveryTerms,
           notes,
           termsConditions,
+          applyIsrRetencion,
+          applyIvaRetencion,
           items: items.filter((i) => i.concept).map((i) => ({
             productId: i.productId,
             concept: i.concept,
@@ -142,6 +165,15 @@ export default function NuevaCotizacionPage() {
               }
               setters[field]?.(value)
             }}
+            applyIsrRetencion={applyIsrRetencion}
+            applyIvaRetencion={applyIvaRetencion}
+            onToggleRetencion={(field, value) =>
+              field === "applyIsrRetencion"
+                ? setApplyIsrRetencion(value)
+                : setApplyIvaRetencion(value)
+            }
+            isrRate={rates.isrRate}
+            ivaRetencionRate={rates.ivaRetencionRate}
           />
         )}
         {step === 3 && (
@@ -156,6 +188,11 @@ export default function NuevaCotizacionPage() {
             onSave={() => handleSave("borrador")}
             onSend={() => handleSave("enviada")}
             saving={saving}
+            ivaRate={rates.ivaRate}
+            isrRate={rates.isrRate}
+            ivaRetencionRate={rates.ivaRetencionRate}
+            applyIsrRetencion={applyIsrRetencion}
+            applyIvaRetencion={applyIvaRetencion}
           />
         )}
       </div>

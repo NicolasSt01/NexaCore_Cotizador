@@ -6,13 +6,55 @@ interface Props {
   notes: string
   termsConditions: string
   onChange: (field: string, value: string) => void
+  applyIsrRetencion: boolean
+  applyIvaRetencion: boolean
+  onToggleRetencion: (field: "applyIsrRetencion" | "applyIvaRetencion", value: boolean) => void
+  isrRate: number
+  ivaRetencionRate: number
 }
 
 export function WizardFiscal({
   paymentTerms, deliveryTerms, notes, termsConditions, onChange,
+  applyIsrRetencion, applyIvaRetencion, onToggleRetencion, isrRate, ivaRetencionRate,
 }: Props) {
+  const pct = (r: number) => `${(r * 100).toFixed(4).replace(/\.?0+$/, "")}%`
+
   return (
     <div className="space-y-4">
+      <div className="p-4 rounded-lg border border-line bg-ink-900/50 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-text-primary">Retenciones</p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Actívalas solo si eres persona física y le facturas a una persona moral.
+            Se restan del total.
+          </p>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={applyIsrRetencion}
+            onChange={(e) => onToggleRetencion("applyIsrRetencion", e.target.checked)}
+            className="w-4 h-4 accent-signal-600"
+          />
+          <span className="text-sm text-text-secondary">
+            Retener ISR ({pct(isrRate)} del subtotal)
+          </span>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={applyIvaRetencion}
+            onChange={(e) => onToggleRetencion("applyIvaRetencion", e.target.checked)}
+            className="w-4 h-4 accent-signal-600"
+          />
+          <span className="text-sm text-text-secondary">
+            Retener IVA ({pct(ivaRetencionRate)} del subtotal)
+          </span>
+        </label>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-text-secondary">Forma de pago</label>

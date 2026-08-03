@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
-import { validateRFC } from "@/lib/taxes"
+import { validateRFC, RFC_PUBLICO_GENERAL } from "@/lib/taxes"
 
 export async function GET() {
   const session = await getSession()
@@ -21,14 +21,29 @@ export async function POST(req: Request) {
 
   const data = await req.json()
 
-  const rfc = (data.rfc ?? "").toUpperCase().trim()
+  // Sin RFC se asume público en general (RFC genérico del SAT), que es el caso
+  // de mostrador donde el cliente no proporciona datos fiscales.
+  const rawRfc = (data.rfc ?? "").toUpperCase().trim()
+  const rfc = rawRfc || RFC_PUBLICO_GENERAL
+
   if (!validateRFC(rfc)) {
-    return NextResponse.json({ error: "RFC inválido" }, { status: 400 })
+    return NextResponse.json(
+      { error: `RFC inválido. Para público en general usa ${RFC_PUBLICO_GENERAL}.` },
+      { status: 400 }
+    )
   }
 
   const exists = await prisma.client.findUnique({ where: { rfc } })
   if (exists) {
-    return NextResponse.json({ error: "Ya existe un cliente con ese RFC" }, { status: 409 })
+    return NextResponse.json(
+      {
+        error:
+          rfc === RFC_PUBLICO_GENERAL
+            ? "El cliente Público General ya existe; selecciónalo en la lista."
+            : "Ya existe un cliente con ese RFC",
+      },
+      { status: 409 }
+    )
   }
 
   const client = await prisma.client.create({

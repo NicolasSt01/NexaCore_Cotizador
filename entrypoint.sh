@@ -4,19 +4,21 @@ set -e
 PRISMA="/app/node_modules/.bin/prisma"
 TSX="/app/node_modules/.bin/tsx"
 
-# Dokploy puede arrancar la app antes de que la BD acepte conexiones.
+# Segunda red de seguridad además del healthcheck del compose: en el primer
+# despliegue MariaDB puede tardar en aceptar conexiones aunque ya esté "healthy".
 echo "Esperando a la base de datos..."
+INTENTOS=60
 i=1
-while [ "$i" -le 30 ]; do
+while [ "$i" -le "$INTENTOS" ]; do
   if echo "SELECT 1;" | "$PRISMA" db execute --stdin --config prisma.config.ts >/dev/null 2>&1; then
     echo "Base de datos lista."
     break
   fi
-  if [ "$i" -eq 30 ]; then
-    echo "La base de datos no respondió tras 60s. Revisa DATABASE_URL." >&2
+  if [ "$i" -eq "$INTENTOS" ]; then
+    echo "La base de datos no respondió tras 120s. Revisa DATABASE_URL." >&2
     exit 1
   fi
-  echo "  intento $i/30..."
+  echo "  intento $i/$INTENTOS..."
   sleep 2
   i=$((i + 1))
 done

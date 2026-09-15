@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
+import { validateRFC, RFC_PUBLICO_GENERAL } from "@/lib/taxes"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -12,7 +13,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     include: {
       quotations: {
         orderBy: { createdAt: "desc" },
-        take: 10,
+        include: {
+          invoice: { select: { id: true, folio: true, status: true, total: true } },
+        },
       },
     },
   })
@@ -28,10 +31,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const data = await req.json()
 
+  if (data.rfc !== undefined) {
+    const rawRfc = (data.rfc ?? "").toUpperCase().trim()
+    const rfc = rawRfc || RFC_PUBLICO_GENERAL
+    if (!validateRFC(rfc)) {
+      return NextResponse.json(
+        { error: `RFC inválido. Para público en general usa ${RFC_PUBLICO_GENERAL}.` },
+        { status: 400 }
+      )
+    }
+  }
+
   const client = await prisma.client.update({
     where: { id: Number(id) },
     data: {
       businessName: data.businessName,
+      rfc: data.rfc,
+      curp: data.curp ? data.curp.toUpperCase().trim() : undefined,
       email: data.email,
       phone: data.phone,
       addressStreet: data.addressStreet,

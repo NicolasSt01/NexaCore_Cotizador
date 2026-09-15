@@ -16,6 +16,7 @@ model User {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   quotations   Quotation[]
+  quotationLogs QuotationLog[]
 
   @@map("users")
 }
@@ -96,6 +97,7 @@ model Quotation {
   user            User             @relation(fields: [userId], references: [id])
   items           QuotationItem[]
   invoice         Invoice?
+  logs            QuotationLog[]
 
   @@map("quotations")
 }
@@ -129,6 +131,7 @@ model Invoice {
   iva           Decimal    @db.Decimal(14, 2)
   retenciones   Decimal    @db.Decimal(14, 2)
   total         Decimal    @db.Decimal(14, 2)
+  dueDate       DateTime?  @map("due_date")
   issueDate     DateTime   @default(now()) @map("issue_date")
   paymentDate   DateTime?  @map("payment_date")
   pdfPath       String?    @map("pdf_path")
@@ -178,4 +181,19 @@ model CompanySettings {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("company_settings")
+}
+
+/** Registro de auditoría de cambios de estado de una cotización. */
+model QuotationLog {
+  id          Int        @id @default(autoincrement())
+  quotationId Int        @map("quotation_id")
+  userId      Int?       @map("user_id")
+  fromStatus  String?    @map("from_status")
+  toStatus    String     @map("to_status")
+  note        String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  quotation   Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  user        User?      @relation(fields: [userId], references: [id])
+
+  @@map("quotation_logs")
 }

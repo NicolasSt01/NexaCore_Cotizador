@@ -28,6 +28,7 @@ const taxTypeLabels: Record<string, { label: string; variant: "green" | "yellow"
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({
     name: "",
@@ -38,14 +39,28 @@ export default function ProductosPage() {
     sku: "",
   })
 
-  async function load() {
-    setLoading(true)
-    const res = await fetch("/api/products")
-    if (res.ok) setProducts(await res.json())
-    setLoading(false)
-  }
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set("search", search)
+    let cancelled = false
+    fetch(`/api/products?${params}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Product[]) => {
+        if (!cancelled) setProducts(data)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [search])
 
-  useEffect(() => { load() }, [])
+  function reload() {
+    const params = new URLSearchParams()
+    if (search) params.set("search", search)
+    fetch(`/api/products?${params}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setProducts)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -57,7 +72,7 @@ export default function ProductosPage() {
     if (res.ok) {
       setModalOpen(false)
       setForm({ name: "", description: "", unitPrice: "", taxType: "iva", unit: "pieza", sku: "" })
-      load()
+      reload()
     } else {
       const err = await res.json()
       alert(err.error)
@@ -69,6 +84,14 @@ export default function ProductosPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text-primary">Productos</h1>
         <Button onClick={() => setModalOpen(true)}>Nuevo producto</Button>
+      </div>
+
+      <div className="max-w-md">
+        <Input
+          placeholder="Buscar por nombre o SKU..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <Card>

@@ -3,11 +3,24 @@ import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
 import { validateRFC, RFC_PUBLICO_GENERAL } from "@/lib/taxes"
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
+  const { searchParams } = new URL(req.url)
+  const search = searchParams.get("search")
+
+  const where: Record<string, unknown> = {}
+  if (search) {
+    where.OR = [
+      { businessName: { contains: search } },
+      { rfc: { contains: search } },
+      { email: { contains: search } },
+    ]
+  }
+
   const clients = await prisma.client.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { quotations: true } } },
   })

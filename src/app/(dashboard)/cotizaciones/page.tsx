@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/Card"
 import { Table, Td } from "@/components/ui/Table"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { QUOTATION_STATUSES } from "@/types"
+import { isQuotationExpired } from "@/lib/quotation-status"
 import Link from "next/link"
 
 interface Quotation {
@@ -14,6 +15,7 @@ interface Quotation {
   folio: string
   total: string
   status: string
+  validUntil: string | null
   createdAt: string
   client: { businessName: string }
 }
@@ -23,23 +25,37 @@ const statusBadge: Record<string, "green" | "yellow" | "blue" | "red" | "gray" |
   aprobada: "green", rechazada: "red", convertida: "green", cancelada: "gray",
 }
 
+const PAGE_SIZE = 10
+
 export default function CotizacionesPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => {
     const params = new URLSearchParams()
     if (search) params.set("search", search)
     if (statusFilter) params.set("status", statusFilter)
-    const res = await fetch(`/api/quotations?${params}`)
-    if (res.ok) setQuotations(await res.json())
-    setLoading(false)
-  }, [search, statusFilter])
+    params.set("page", String(page))
+    params.set("pageSize", String(PAGE_SIZE))
+    let cancelled = false
+    fetch(`/api/quotations?${params}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (cancelled) return
+        setQuotations(body?.data ?? [])
+        setTotal(body?.total ?? 0)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [search, statusFilter, page])
 
-  useEffect(() => { load() }, [load])
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="space-y-6">
@@ -55,12 +71,12 @@ export default function CotizacionesPage() {
           <Input
             placeholder="Buscar por folio o cliente..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
           className="h-10 px-3 rounded-lg bg-ink-900 border border-line text-text-primary focus:outline-none focus:ring-2 focus:ring-signal-500/40"
         >
           <option value="">Todos los estados</option>
@@ -85,25 +101,47 @@ export default function CotizacionesPage() {
             <tr><Td colSpan={6} className="text-text-muted text-center py-8">Cargando...</Td></tr>
           ) : quotations.length === 0 ? (
             <tr><Td colSpan={6} className="text-text-muted text-center py-8">Sin cotizaciones</Td></tr>
-          ) : quotations.map((q) => (
-            <tr key={q.id}>
-              <Td><span className="font-mono text-sm">{q.folio}</span></Td>
-              <Td className="font-medium">{q.client.businessName}</Td>
-              <Td><span className="font-mono">${Number(q.total).toLocaleString("es-MX")}</span></Td>
-              <Td>
-                <Badge variant={statusBadge[q.status] || "gray"}>
-                  {QUOTATION_STATUSES.find((s) => s.value === q.status)?.label || q.status}
-                </Badge>
-              </Td>
-              <Td className="text-text-muted">{new Date(q.createdAt).toLocaleDateString("es-MX")}</Td>
-              <Td>
-                <Link href={`/cotizaciones/${q.id}`} className="text-signal-400 hover:text-signal-300 text-sm">
-                  Ver
-                </Link>
-              </Td>
-            </tr>
-          ))}
+          ) : quotations.map((q) => {
+            const expired = isQuotationExpired(q.validUntil, q.status)
+            return (
+              <tr key={q.id}>
+                <Td><span className="font-mono text-sm">{q.folio}</span></Td>
+                <Td className="font-medium">{q.client.businessName}</Td>
+                <Td><span className="font-mono">${Number(q.total).toLocaleString("es-MX")}</span></Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusBadge[q.status] || "gray"}>
+                      {QUOTATION_STATUSES.find((s) => s.value === q.status)?.label || q.status}
+                    </Badge>
+                    {expired && <Badge variant="red">Vencida</Badge>}
+                  </div>
+                </Td>
+                <Td className="text-text-muted">{new Date(q.createdAt).toLocaleDateString("es-MX")}</Td>
+                <Td>
+                  <Link href={`/cotizaciones/${q.id}`} className="text-signal-400 hover:text-signal-300 text-sm">
+                    Ver
+                  </Link>
+                </Td>
+              </tr>
+            )
+          })}
         </Table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-line">
+            <p className="text-sm text-text-muted">
+              {total} cotizaciones · página {page} de {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Anterior
+              </Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )

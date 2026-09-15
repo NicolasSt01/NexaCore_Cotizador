@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { isQuotationExpired } from "@/lib/quotation-status"
+import { logQuotationChange } from "@/lib/audit"
 
 export async function GET(
   _req: Request,
@@ -20,6 +22,14 @@ export async function GET(
   }
 
   if (quotation.status === "enviada" || quotation.status === "vista") {
+    if (quotation.status === "enviada") {
+      await logQuotationChange({
+        quotationId: quotation.id,
+        fromStatus: "enviada",
+        toStatus: "vista",
+        note: "El cliente abrió el enlace público",
+      })
+    }
     await prisma.quotation.update({
       where: { id: quotation.id },
       data: { status: "vista" },
@@ -57,9 +67,21 @@ export async function PATCH(
         { status: 400 }
       )
     }
+    if (isQuotationExpired(quotation.validUntil, quotation.status)) {
+      return NextResponse.json(
+        { error: "La cotización venció. Contacta al emisor para renovarla." },
+        { status: 400 }
+      )
+    }
     await prisma.quotation.update({
       where: { id: quotation.id },
       data: { status: "aprobada" },
+    })
+    await logQuotationChange({
+      quotationId: quotation.id,
+      fromStatus: quotation.status,
+      toStatus: "aprobada",
+      note: "Aprobada por el cliente desde la página pública",
     })
     return NextResponse.json({ success: true, status: "aprobada" })
   }
@@ -74,6 +96,12 @@ export async function PATCH(
     await prisma.quotation.update({
       where: { id: quotation.id },
       data: { status: "rechazada" },
+    })
+    await logQuotationChange({
+      quotationId: quotation.id,
+      fromStatus: quotation.status,
+      toStatus: "rechazada",
+      note: "Rechazada por el cliente desde la página pública",
     })
     return NextResponse.json({ success: true, status: "rechazada" })
   }

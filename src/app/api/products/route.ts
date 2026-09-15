@@ -2,11 +2,23 @@ import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
+  const { searchParams } = new URL(req.url)
+  const search = searchParams.get("search")
+
+  const where: Record<string, unknown> = {}
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { sku: { contains: search } },
+    ]
+  }
+
   const products = await prisma.product.findMany({
+    where,
     orderBy: { name: "asc" },
   })
 

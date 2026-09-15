@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { WizardCliente } from "@/components/quotations/WizardCliente"
 import { WizardConceptos } from "@/components/quotations/WizardConceptos"
@@ -41,27 +41,32 @@ export default function NuevaCotizacionPage() {
   // total distinto al que calcula el servidor al guardar.
   const [rates, setRates] = useState({ ivaRate: 0.16, isrRate: 0.1, ivaRetencionRate: 0.106666 })
 
-  const loadClients = useCallback(async () => {
-    const res = await fetch("/api/clients")
-    if (res.ok) setClients(await res.json())
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/clients")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: { id: number; businessName: string; rfc: string }[]) => {
+        if (!cancelled) setClients(data)
+      })
+    return () => { cancelled = true }
   }, [])
 
-  const loadSettings = useCallback(async () => {
-    const res = await fetch("/api/settings")
-    if (!res.ok) return
-    const s = await res.json()
-    if (!s) return
-    setRates({
-      ivaRate: Number(s.ivaRate ?? 0.16),
-      isrRate: Number(s.isrRetencionRate ?? 0.1),
-      ivaRetencionRate: Number(s.ivaRetencionRate ?? 0.106666),
-    })
-    setNotes((n) => n || s.defaultNotes || "")
-    setTermsConditions((t) => t || s.defaultTerms || "")
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (cancelled || !s) return
+        setRates({
+          ivaRate: Number(s.ivaRate ?? 0.16),
+          isrRate: Number(s.isrRetencionRate ?? 0.1),
+          ivaRetencionRate: Number(s.ivaRetencionRate ?? 0.106666),
+        })
+        setNotes((n) => n || s.defaultNotes || "")
+        setTermsConditions((t) => t || s.defaultTerms || "")
+      })
+    return () => { cancelled = true }
   }, [])
-
-  useEffect(() => { loadClients() }, [loadClients])
-  useEffect(() => { loadSettings() }, [loadSettings])
 
   const filteredClients = clients.filter(
     (c) =>

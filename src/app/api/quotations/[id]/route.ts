@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { NextResponse } from "next/server"
 import { getTaxRates, calculateQuotationTotals } from "@/lib/taxes"
+import { isQuotationExpired } from "@/lib/quotation-status"
+import { logQuotationChange } from "@/lib/audit"
 
 /**
  * Recalcula retenciones y total de una cotización existente a partir de las
@@ -47,6 +49,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       items: { orderBy: { sortOrder: "asc" } },
       user: { select: { name: true, email: true } },
       invoice: true,
+      logs: {
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { name: true } } },
+      },
     },
   })
 
@@ -64,14 +70,40 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const validTransitions: Record<string, string[]> = {
     borrador: ["enviada", "cancelada"],
     enviada: ["vista", "aprobada", "rechazada", "cancelada"],
-    vista: ["aprobada", "rechazada"],
-    aprobada: ["convertida"],
+    vista: ["aprobada", "rechazada", "cancelada"],
+    aprobada: ["convertida", "cancelada"],
     rechazada: ["borrador", "cancelada"],
   }
 
   if (data.status) {
     const current = await prisma.quotation.findUnique({ where: { id: Number(id) } })
-    if (current && validTransitions[current.status] && !validTransitions[current.status].includes(data.status)) {
+    // Una cotización vencida no se puede aprobar ni reenviar: la fecha límite
+    // guarda el acuerdo de precio y ya expiró para el cliente.
+    if (
+      current &&
+      data.status === "aprobada" &&
+      isQuotationExpired(current.validUntil, current.status)
+    ) {
+      return NextResponse.json(
+        { error: "La cotización está vencida. Actualiza la fecha límite antes de aprobarla." },
+        { status: 400 }
+      )
+    }
+    // Cancelar se permite desde cualquier estado salvo `convertida`: ahí ya
+    // existe una factura y cancelar la cotización dejaría la factura sin origen.
+    if (current && data.status === "cancelada" && current.status === "convertida") {
+      return NextResponse.json(
+        { error: "No se puede cancelar una cotización ya convertida a factura." },
+        { status: 400 }
+      )
+    }
+    // El resto de transiciones siguen la máquina de estados.
+    if (
+      current &&
+      data.status !== "cancelada" &&
+      validTransitions[current.status] &&
+      !validTransitions[current.status].includes(data.status)
+    ) {
       return NextResponse.json(
         { error: `Transición inválida: ${current.status} → ${data.status}` },
         { status: 400 }
@@ -91,6 +123,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     )
     if (!totals) return NextResponse.json({ error: "No encontrado" }, { status: 404 })
   }
+
+  const current = await prisma.quotation.findUnique({ where: { id: Number(id) } })
+  const quoteOldStatus = current?.status ?? null
 
   const quotation = await prisma.quotation.update({
     where: { id: Number(id) },
@@ -113,6 +148,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }),
     },
   })
+
+  if (data.status && data.status !== quoteOldStatus) {
+    await logQuotationChange({
+      quotationId: Number(id),
+      userId: Number(session.user.id),
+      fromStatus: quoteOldStatus,
+      toStatus: data.status,
+    })
+  }
 
   return NextResponse.json(quotation)
 }

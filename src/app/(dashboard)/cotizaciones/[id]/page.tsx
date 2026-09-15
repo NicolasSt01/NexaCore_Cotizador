@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button"
 import { PDFDownload } from "@/components/quotations/PDFDownload"
 import { EmailModal } from "@/components/quotations/EmailModal"
 import { QUOTATION_STATUSES } from "@/types"
+import { isQuotationExpired } from "@/lib/quotation-status"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -51,6 +52,14 @@ interface QuotationDetail {
   client: { id: number; businessName: string; rfc: string; email?: string | null }
   items: QuotationItem[]
   invoice?: { id: number; folio: string } | null
+  logs?: {
+    id: number
+    fromStatus: string | null
+    toStatus: string
+    note: string | null
+    createdAt: string
+    user: { name: string } | null
+  }[]
 }
 
 const PDF_TOGGLES = [
@@ -93,18 +102,31 @@ export default function CotizacionDetallePage() {
   }, [])
 
   async function load() {
-    const r = await fetch(`/api/quotations/${id}`)
-    if (!r.ok) { setLoading(false); return }
-    const d = await r.json()
+    const d = await fetch(`/api/quotations/${id}`).then(async (r) => (r.ok ? r.json() : null))
+    applyQuotation(d)
+  }
+
+  /** Vuelca una cotización (o null) en el estado de la página. */
+  function applyQuotation(d: QuotationDetail | null) {
+    if (!d) { setLoading(false); return }
     setData(d)
-    if (d?.publicHash) {
+    if (d.publicHash) {
       const url = `${window.location.origin}/publica/${d.publicHash}`
       import("qrcode").then((qr) => qr.default.toDataURL(url).then(setQrUrl))
     }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/quotations/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) applyQuotation(d)
+        else if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [id])
 
   const [updating, setUpdating] = useState(false)
 
@@ -125,6 +147,24 @@ export default function CotizacionDetallePage() {
     setUpdating(false)
   }
 
+  /** Cambia el estado de la cotización desde el panel de administrador. */
+  async function changeStatus(newStatus: string, confirmMsg?: string) {
+    if (confirmMsg && !confirm(confirmMsg)) return
+    setUpdating(true)
+    const r = await fetch(`/api/quotations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    })
+    if (r.ok) {
+      await load()
+    } else {
+      const err = await r.json()
+      alert(err.error || "No se pudo actualizar el estado")
+    }
+    setUpdating(false)
+  }
+
   async function handleConvertInvoice() {
     if (!confirm("¿Convertir esta cotización a factura?")) return
     const r = await fetch(`/api/quotations/${id}/invoice`, { method: "POST" })
@@ -134,6 +174,22 @@ export default function CotizacionDetallePage() {
       const err = await r.json()
       alert(err.error || "Error al convertir")
     }
+  }
+
+  const [cloning, setCloning] = useState(false)
+
+  async function handleDuplicate() {
+    if (!confirm("¿Duplicar esta cotización como borrador?")) return
+    setCloning(true)
+    const r = await fetch(`/api/quotations/${id}/duplicate`, { method: "POST" })
+    if (r.ok) {
+      const clone = await r.json()
+      router.push(`/cotizaciones/${clone.id}`)
+    } else {
+      const err = await r.json()
+      alert(err.error || "Error al duplicar")
+    }
+    setCloning(false)
   }
 
   if (loading) return <p className="text-text-muted py-12 text-center">Cargando...</p>
@@ -156,6 +212,9 @@ export default function CotizacionDetallePage() {
           <Badge variant={statusBadge[data.status] || "gray"}>
             {QUOTATION_STATUSES.find((s) => s.value === data.status)?.label || data.status}
           </Badge>
+          {isQuotationExpired(data.validUntil, data.status) && (
+            <Badge variant="red">Vencida</Badge>
+          )}
           {data.invoice && (
             <Link href={`/facturas`}>
               <Badge variant="green">Factura: {data.invoice.folio}</Badge>
@@ -213,6 +272,47 @@ export default function CotizacionDetallePage() {
         {data.status === "aprobada" && (
           <Button variant="primary" onClick={handleConvertInvoice}>
             Convertir a factura
+          </Button>
+        )}
+
+        {/* Controles de estado del administrador: complementan la aprobación
+            que el cliente puede hacer desde el enlace público. */}
+        {data.status === "borrador" && (
+          <Button
+            variant="secondary"
+            disabled={updating}
+            onClick={() => changeStatus("enviada")}
+          >
+            Marcar como enviada
+          </Button>
+        )}
+        {(data.status === "enviada" || data.status === "vista") && (
+          <>
+            <Button
+              variant="primary"
+              disabled={updating}
+              onClick={() => changeStatus("aprobada", "¿Aprobar esta cotización?")}
+            >
+              Aprobar
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={updating}
+              onClick={() => changeStatus("rechazada", "¿Rechazar esta cotización?")}
+            >
+              Rechazar
+            </Button>
+          </>
+        )}
+        {data.status !== "cancelada" && data.status !== "convertida" && (
+          <Button
+            variant="danger"
+            disabled={updating}
+            onClick={() =>
+              changeStatus("cancelada", "¿Cancelar esta cotización? Quedará fuera del flujo de aprobación.")
+            }
+          >
+            Cancelar
           </Button>
         )}
       </div>
@@ -371,8 +471,38 @@ export default function CotizacionDetallePage() {
         </Card>
       )}
 
+      {data.logs && data.logs.length > 0 && (
+        <Card>
+          <p className="text-xs text-text-muted uppercase font-semibold mb-4">Historial</p>
+          <ol className="space-y-3">
+            {data.logs.map((log) => {
+              const from = QUOTATION_STATUSES.find((s) => s.value === log.fromStatus)?.label || log.fromStatus
+              const to = QUOTATION_STATUSES.find((s) => s.value === log.toStatus)?.label || log.toStatus
+              return (
+                <li key={log.id} className="flex gap-3 items-start">
+                  <span className="mt-1.5 w-2 h-2 rounded-full bg-signal-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-text-primary">
+                      <span className="font-medium">{log.user?.name ?? "Cliente"}</span>
+                      {from ? <span className="text-text-muted"> · {from} → {to}</span> : <span className="text-text-muted"> · {to}</span>}
+                    </p>
+                    {log.note && <p className="text-xs text-text-muted">{log.note}</p>}
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {new Date(log.createdAt).toLocaleString("es-MX")}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </Card>
+      )}
+
       <div className="flex gap-3">
         <Button variant="secondary" onClick={() => router.push("/cotizaciones")}>Volver</Button>
+        <Button variant="secondary" onClick={handleDuplicate} disabled={cloning}>
+          {cloning ? "Duplicando..." : "Duplicar"}
+        </Button>
       </div>
 
       {showEmail && (

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Card } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
+import { Input } from "@/components/ui/Input"
 import Link from "next/link"
 
 interface InvoiceDetail {
@@ -15,6 +16,7 @@ interface InvoiceDetail {
   iva: string
   retenciones: string
   total: string
+  dueDate: string | null
   issueDate: string
   paymentDate: string | null
   quotation: {
@@ -29,13 +31,80 @@ export default function FacturaDetallePage() {
   const router = useRouter()
   const [data, setData] = useState<InvoiceDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
+  const [overdue, setOverdue] = useState(false)
+  const [dueDraft, setDueDraft] = useState("")
+
+  async function load() {
+    const res = await fetch(`/api/invoices/${id}`)
+    if (res.ok) {
+      const d = await res.json()
+      setData(d)
+      setOverdue(
+        d?.status === "pendiente" && d?.dueDate
+          ? new Date(d.dueDate).getTime() < Date.now()
+          : false
+      )
+      if (d?.dueDate) {
+        setDueDraft(new Date(d.dueDate).toISOString().slice(0, 10))
+      }
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
+    let cancelled = false
     fetch(`/api/invoices/${id}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then(setData)
-      .finally(() => setLoading(false))
+      .then((d) => {
+        if (cancelled || !d) return
+        setData(d)
+        setOverdue(
+          d?.status === "pendiente" && d?.dueDate
+            ? new Date(d.dueDate).getTime() < Date.now()
+            : false
+        )
+        if (d?.dueDate) {
+          setDueDraft(new Date(d.dueDate).toISOString().slice(0, 10))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [id])
+
+  async function act(action: string, confirmMsg?: string) {
+    if (confirmMsg && !confirm(confirmMsg)) return
+    setUpdating(true)
+    const r = await fetch(`/api/invoices/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    })
+    if (r.ok) await load()
+    else {
+      const err = await r.json()
+      alert(err.error || "No se pudo actualizar")
+    }
+    setUpdating(false)
+  }
+
+  async function saveDueDate() {
+    if (!dueDraft) return
+    setUpdating(true)
+    const r = await fetch(`/api/invoices/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "dueDate", dueDate: dueDraft }),
+    })
+    if (r.ok) await load()
+    else {
+      const err = await r.json()
+      alert(err.error || "No se pudo actualizar")
+    }
+    setUpdating(false)
+  }
 
   if (loading) return <p className="text-text-muted py-12 text-center">Cargando...</p>
   if (!data) return <p className="text-text-muted py-12 text-center">No encontrada</p>
@@ -43,6 +112,7 @@ export default function FacturaDetallePage() {
   const statusBadge: Record<string, "green" | "yellow" | "red" | "gray"> = {
     pendiente: "yellow", pagada: "green", cancelada: "red",
   }
+  const statusLabel = data.status === "pendiente" ? "Pendiente" : data.status === "pagada" ? "Pagada" : "Cancelada"
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -53,9 +123,23 @@ export default function FacturaDetallePage() {
           </Link>
           <h1 className="text-2xl font-semibold text-text-primary font-mono">{data.folio}</h1>
         </div>
-        <Badge variant={statusBadge[data.status] || "gray"}>
-          {data.status === "pendiente" ? "Pendiente" : data.status === "pagada" ? "Pagada" : "Cancelada"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={statusBadge[data.status] || "gray"}>{statusLabel}</Badge>
+          {overdue && <Badge variant="red">Vencida</Badge>}
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        {data.status === "pendiente" && (
+          <Button onClick={() => act("pay", "¿Registrar esta factura como pagada?")} disabled={updating}>
+            Marcar como pagada
+          </Button>
+        )}
+        {data.status === "pagada" && (
+          <Button variant="secondary" onClick={() => act("reopen", "¿Reabrir la factura como pendiente?")} disabled={updating}>
+            Reabrir
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -71,6 +155,23 @@ export default function FacturaDetallePage() {
           {data.paymentDate && <p className="text-xs text-text-muted">Pago: {new Date(data.paymentDate).toLocaleDateString("es-MX")}</p>}
         </Card>
       </div>
+
+      <Card>
+        <p className="text-xs text-text-muted uppercase font-semibold mb-3">Vencimiento</p>
+        <div className="flex items-end gap-2">
+          <div className="flex-1 max-w-xs">
+            <Input
+              type="date"
+              value={dueDraft}
+              onChange={(e) => setDueDraft(e.target.value)}
+              placeholder="Fecha de vencimiento"
+            />
+          </div>
+          <Button variant="secondary" onClick={saveDueDate} disabled={updating || !dueDraft}>
+            Guardar
+          </Button>
+        </div>
+      </Card>
 
       <Card padding="sm">
         <table className="w-full">
@@ -117,6 +218,12 @@ export default function FacturaDetallePage() {
             <span className="text-text-primary">Total</span>
             <span className="font-mono text-signal-400">
               ${Number(data.total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm pt-2">
+            <span className="text-text-muted">Saldo</span>
+            <span className={`font-mono ${data.status === "pagada" ? "text-text-muted" : "text-text-primary"}`}>
+              {data.status === "pagada" ? "Pagado" : `$${Number(data.total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`}
             </span>
           </div>
         </div>

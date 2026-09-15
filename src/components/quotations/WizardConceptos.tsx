@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 interface LineItem {
   id: string
@@ -12,6 +12,17 @@ interface LineItem {
   unitPrice: number
   discountPercent: number
   taxType: "iva" | "iva_retencion" | "exento"
+}
+
+/** Servicio/producto del catálogo (/productos) para prellenar partidas. */
+interface CatalogProduct {
+  id: number
+  name: string
+  description: string | null
+  unitPrice: string
+  unit: string
+  taxType: string
+  active: boolean
 }
 
 interface Props {
@@ -34,7 +45,38 @@ function newItem(): LineItem {
   }
 }
 
+/** Convierte un producto del catálogo en una partida lista para cotizar. */
+function itemFromProduct(p: CatalogProduct): LineItem {
+  const taxType =
+    p.taxType === "iva_retencion" || p.taxType === "exento" ? p.taxType : "iva"
+  return {
+    id: String(nextId++),
+    productId: p.id,
+    concept: p.name,
+    description: p.description ?? "",
+    quantity: 1,
+    unit: p.unit || "pieza",
+    unitPrice: Number(p.unitPrice),
+    discountPercent: 0,
+    taxType,
+  }
+}
+
 export function WizardConceptos({ items, onChange }: Props) {
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([])
+
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: CatalogProduct[]) => setCatalog(data.filter((p) => p.active)))
+      .catch(() => setCatalog([]))
+  }, [])
+
+  function addFromCatalog(productId: number) {
+    const p = catalog.find((c) => c.id === productId)
+    if (p) onChange([...items, itemFromProduct(p)])
+  }
+
   function updateItem(id: string, fn: (item: LineItem) => LineItem) {
     onChange(items.map((i) => (i.id === id ? fn(i) : i)))
   }
@@ -55,6 +97,29 @@ export function WizardConceptos({ items, onChange }: Props) {
 
   return (
     <div className="space-y-3">
+      {catalog.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-line bg-ink-900/40">
+          <label className="text-xs text-text-muted whitespace-nowrap">
+            Agregar del catálogo
+          </label>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) addFromCatalog(Number(e.target.value))
+              e.target.value = ""
+            }}
+            className="flex-1 h-9 px-3 rounded-lg bg-ink-900 border border-line text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-signal-500/40"
+          >
+            <option value="">Elegir un servicio…</option>
+            {catalog.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — ${Number(p.unitPrice).toLocaleString("es-MX")} / {p.unit}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {items.map((item) => (
         <div key={item.id} className="p-4 rounded-lg border border-line space-y-3">
           <div className="grid grid-cols-[1fr_auto] gap-3">

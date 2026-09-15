@@ -20,16 +20,19 @@ const statusBadgeVariant: Record<string, "green" | "yellow" | "blue" | "red" | "
 }
 
 async function getDashboardData() {
-  const [quotations, totalQuotations, approvedCount, rejectedCount] = await Promise.all([
-    prisma.quotation.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { client: true },
-    }),
-    prisma.quotation.count(),
-    prisma.quotation.count({ where: { status: "aprobada" } }),
-    prisma.quotation.count({ where: { status: "rechazada" } }),
-  ])
+  const [quotations, totalQuotations, sentCount, approvedCount, rejectedCount, convertedCount] =
+    await Promise.all([
+      prisma.quotation.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { client: true },
+      }),
+      prisma.quotation.count(),
+      prisma.quotation.count({ where: { status: { in: ["enviada", "vista"] } } }),
+      prisma.quotation.count({ where: { status: "aprobada" } }),
+      prisma.quotation.count({ where: { status: "rechazada" } }),
+      prisma.quotation.count({ where: { status: "convertida" } }),
+    ])
 
   const activeCount = await prisma.quotation.count({
     where: { status: { in: ["borrador", "enviada", "vista"] } },
@@ -75,7 +78,9 @@ async function getDashboardData() {
     quotations,
     activeCount,
     totalQuotations,
+    sentCount,
     approvedCount,
+    convertedCount,
     rejectedCount,
     totalRevenue: totalRevenue._sum.total || 0,
     statusCounts: statusCounts.map((s) => ({ status: s.status, count: s._count })),
@@ -85,8 +90,11 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
-  const conversionRate = data.totalQuotations > 0
-    ? Math.round((data.approvedCount / data.totalQuotations) * 100)
+  // Conversión = aprobadas (incluye convertidas) sobre las que llegaron a
+  // salir al cliente (enviadas + vistas + aprobadas + convertidas).
+  const reachedClient = data.sentCount + data.approvedCount + data.convertedCount
+  const conversionRate = reachedClient > 0
+    ? Math.round(((data.approvedCount + data.convertedCount) / reachedClient) * 100)
     : 0
 
   return (

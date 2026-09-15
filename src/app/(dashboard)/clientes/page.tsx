@@ -23,6 +23,7 @@ interface Client {
 export default function ClientesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({
     businessName: "",
@@ -41,12 +42,27 @@ export default function ClientesPage() {
 
   async function load() {
     setLoading(true)
-    const res = await fetch("/api/clients")
+    const params = new URLSearchParams()
+    if (search) params.set("search", search)
+    const res = await fetch(`/api/clients?${params}`)
     if (res.ok) setClients(await res.json())
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set("search", search)
+    let cancelled = false
+    fetch(`/api/clients?${params}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Client[]) => {
+        if (!cancelled) setClients(data)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [search])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -85,6 +101,14 @@ export default function ClientesPage() {
         <Button onClick={() => setModalOpen(true)}>Nuevo cliente</Button>
       </div>
 
+      <div className="max-w-md">
+        <Input
+          placeholder="Buscar por RFC, razón social o email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <Card>
         <Table
           headers={[
@@ -100,9 +124,9 @@ export default function ClientesPage() {
           ) : clients.length === 0 ? (
             <tr><Td colSpan={5} className="text-text-muted text-center py-8">Sin clientes registrados</Td></tr>
           ) : clients.map((c) => (
-            <tr key={c.id}>
+            <tr key={c.id} className="hover:bg-ink-850 transition-colors cursor-pointer" onClick={() => window.location.href = `/clientes/${c.id}`}>
               <Td><span className="font-mono text-sm">{c.rfc}</span></Td>
-              <Td className="font-medium">{c.businessName}</Td>
+              <Td className="font-medium text-signal-400">{c.businessName}</Td>
               <Td>
                 {c.email && <p className="text-sm">{c.email}</p>}
                 {c.phone && <p className="text-xs text-text-muted">{c.phone}</p>}

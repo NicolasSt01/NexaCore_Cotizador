@@ -103,8 +103,29 @@ export default function ConfiguracionPage() {
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    let cancelled = false
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (cancelled || !s) return
+        setForm({
+          ...EMPTY,
+          ...Object.fromEntries(
+            Object.keys(EMPTY).map((k) => [k, s[k] ?? EMPTY[k as keyof typeof EMPTY]])
+          ),
+          ivaRate: toPercent(s.ivaRate),
+          isrRetencionRate: toPercent(s.isrRetencionRate),
+          ivaRetencionRate: toPercent(s.ivaRetencionRate),
+          logoData: s.logoData ?? "",
+          logoHeight: String(s.logoHeight ?? 48),
+          brandName: s.brandName ?? "",
+        } as typeof EMPTY)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const set = (field: keyof typeof EMPTY) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>

@@ -11,6 +11,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get("status")
   const search = searchParams.get("search")
+  const page = Math.max(1, Number(searchParams.get("page") || 1))
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || 10)))
 
   const where: Record<string, unknown> = {}
   if (status) where.status = status
@@ -21,13 +23,18 @@ export async function GET(req: Request) {
     ]
   }
 
-  const quotations = await prisma.quotation.findMany({
-    where,
-    include: { client: true },
-    orderBy: { createdAt: "desc" },
-  })
+  const [quotations, total] = await Promise.all([
+    prisma.quotation.findMany({
+      where,
+      include: { client: { select: { businessName: true } } },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.quotation.count({ where }),
+  ])
 
-  return NextResponse.json(quotations)
+  return NextResponse.json({ data: quotations, total, page, pageSize })
 }
 
 export async function POST(req: Request) {

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { sendQuotationEmail } from "@/lib/mail"
+import { logQuotationChange } from "@/lib/audit"
 import { NextResponse } from "next/server"
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       await prisma.quotation.update({
         where: { id: Number(id) },
         data: { status: "enviada" },
+      })
+      await logQuotationChange({
+        quotationId: Number(id),
+        userId: Number(session.user.id),
+        fromStatus: "borrador",
+        toStatus: "enviada",
+        note: "Enviada por correo",
       })
     }
 

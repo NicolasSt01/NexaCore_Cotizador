@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/api-helpers"
 import { generateFolio } from "@/lib/taxes"
+import { logQuotationChange } from "@/lib/audit"
 import { NextResponse } from "next/server"
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       quotationId: quotation.id,
       folio: invoiceFolio,
       status: "pendiente",
+      dueDate: quotation.validUntil,
       subtotal: quotation.subtotal,
       iva: quotation.ivaAmount,
       retenciones: quotation.isrRetencion.add(quotation.ivaRetencion),
@@ -43,6 +45,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   await prisma.quotation.update({
     where: { id: Number(id) },
     data: { status: "convertida" },
+  })
+
+  await logQuotationChange({
+    quotationId: Number(id),
+    userId: Number(session.user.id),
+    fromStatus: "aprobada",
+    toStatus: "convertida",
+    note: `Convertida a factura ${invoiceFolio}`,
   })
 
   return NextResponse.json(invoice)

@@ -23,5 +23,8 @@ export const proxy: NextProxy = async (req: NextRequest) => {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // `publica` queda fuera del middleware: la página /publica/[hash] es el
+  // enlace del QR que abre el cliente sin sesión. Sin excluirla, el guard de
+  // abajo la redirige a /login y el cliente nunca ve la cotización.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|publica).*)"],
 }

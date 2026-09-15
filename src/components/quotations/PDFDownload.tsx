@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/Button"
 
 interface QuotationData {
@@ -71,6 +71,21 @@ export function PDFDownload({
   const [brandHead, brandTail] = splitWordmark((brandName ?? "").trim())
   const contentRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState("")
+
+  // Genera el QR del enlace público para incrustarlo en el PDF. html2canvas
+  // rasteriza el DOM, así que el QR debe existir ya como <img> decodificada
+  // antes de descargar (handleDownload espera a que las imágenes carguen).
+  useEffect(() => {
+    if (!quotation.publicHash) return
+    const url = `${window.location.origin}/publica/${quotation.publicHash}`
+    import("qrcode").then((qr) =>
+      qr.default
+        .toDataURL(url, { width: 160, margin: 1 })
+        .then(setQrDataUrl)
+        .catch(() => setQrDataUrl(""))
+    )
+  }, [quotation.publicHash])
 
   async function handleDownload() {
     if (!contentRef.current) return
@@ -334,9 +349,17 @@ export function PDFDownload({
             <tbody>
               <tr>
                 <td style={{ width: "50%", verticalAlign: "top" }}>
-                  <div id="pdf-qr-placeholder" style={{ width: "80px", height: "80px", background: "#f0f2f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: "#9AA7BE" }}>
-                    QR
-                  </div>
+                  {qrDataUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={qrDataUrl} alt="QR" style={{ width: "80px", height: "80px", display: "block" }} />
+                      <div style={{ fontSize: "8px", color: "#9AA7BE", marginTop: "4px" }}>
+                        Escanea para ver la cotización en línea
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ width: "80px", height: "80px" }} />
+                  )}
                 </td>
                 <td style={{ width: "50%", textAlign: "right", verticalAlign: "bottom", fontSize: "8px", color: "#9AA7BE" }}>
                   {companyName} · {companyRfc}

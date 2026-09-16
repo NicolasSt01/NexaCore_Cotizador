@@ -166,7 +166,7 @@ export default function CotizacionDetallePage() {
   }
 
   async function handleConvertInvoice() {
-    if (!confirm("¿Convertir esta cotización a factura?")) return
+    if (!confirm("¿Solicitar la factura de esta cotización? Se creará como 'solicitada al despacho'.")) return
     const r = await fetch(`/api/quotations/${id}/invoice`, { method: "POST" })
     if (r.ok) {
       load()
@@ -271,7 +271,7 @@ export default function CotizacionDetallePage() {
         )}
         {data.status === "aprobada" && (
           <Button variant="primary" onClick={handleConvertInvoice}>
-            Convertir a factura
+            Solicitar factura
           </Button>
         )}
 

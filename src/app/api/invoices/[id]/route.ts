@@ -16,6 +16,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           items: { orderBy: { sortOrder: "asc" } },
         },
       },
+      charge: {
+        include: {
+          contract: { include: { client: true } },
+          lines: { orderBy: { id: "asc" } },
+        },
+      },
     },
   })
 
@@ -28,10 +34,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   const { id } = await params
-  const { action, dueDate } = await req.json()
+  const { action, dueDate, formaPago, metodoPago } = await req.json()
 
   const invoice = await prisma.invoice.findUnique({ where: { id: Number(id) } })
   if (!invoice) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
+
+  // Forma y método de pago (SAT): datos que el despacho necesita para timbrar.
+  // Se pueden capturar antes de marcar la factura como facturada.
+  if (action === "saveFiscal") {
+    const updated = await prisma.invoice.update({
+      where: { id: Number(id) },
+      data: {
+        formaPago: formaPago ?? invoice.formaPago,
+        metodoPago: metodoPago ?? invoice.metodoPago,
+      },
+    })
+    return NextResponse.json(updated)
+  }
 
   if (action === "pay") {
     if (invoice.status === "pagada") {
@@ -48,9 +67,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (invoice.status !== "pagada") {
       return NextResponse.json({ error: "La factura no está pagada" }, { status: 400 })
     }
+    // Vuelve al estado previo según si ya estaba timbrada.
     const updated = await prisma.invoice.update({
       where: { id: Number(id) },
-      data: { status: "pendiente", paymentDate: null },
+      data: { status: invoice.uuid ? "facturada" : "solicitada", paymentDate: null },
     })
     return NextResponse.json(updated)
   }

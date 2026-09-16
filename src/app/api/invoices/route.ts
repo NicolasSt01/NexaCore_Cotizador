@@ -26,6 +26,13 @@ export async function GET(req: Request) {
       quotation: {
         select: { folio: true, client: { select: { businessName: true, rfc: true } } },
       },
+      charge: {
+        select: {
+          periodYear: true,
+          periodMonth: true,
+          contract: { select: { name: true, client: { select: { businessName: true, rfc: true } } } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   })

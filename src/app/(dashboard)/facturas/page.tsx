@@ -13,7 +13,8 @@ interface Invoice {
   dueDate: string | null
   issueDate: string
   overdue: boolean
-  quotation: { folio: string; client: { businessName: string; rfc: string } }
+  quotation?: { folio: string; client: { businessName: string; rfc: string } } | null
+  charge?: { periodYear: number; periodMonth: number; contract: { name: string; client: { businessName: string; rfc: string } } } | null
 }
 
 export default function FacturasPage() {
@@ -36,7 +37,7 @@ export default function FacturasPage() {
           list.map((inv) => ({
             ...inv,
             overdue:
-              inv.status === "pendiente" && inv.dueDate
+              inv.status !== "pagada" && inv.status !== "cancelada" && inv.dueDate
                 ? new Date(inv.dueDate).getTime() < now
                 : false,
           }))
@@ -48,8 +49,11 @@ export default function FacturasPage() {
     return () => { cancelled = true }
   }, [search, statusFilter])
 
-  const statusBadge: Record<string, "green" | "yellow" | "red" | "gray"> = {
-    pendiente: "yellow", pagada: "green", cancelada: "red",
+  const statusBadge: Record<string, "green" | "yellow" | "blue" | "red" | "gray"> = {
+    solicitada: "yellow", pendiente: "yellow", facturada: "blue", pagada: "green", cancelada: "red",
+  }
+  const statusLabel: Record<string, string> = {
+    solicitada: "Solicitada", pendiente: "Solicitada", facturada: "Facturada", pagada: "Pagada", cancelada: "Cancelada",
   }
 
   return (
@@ -72,7 +76,8 @@ export default function FacturasPage() {
           className="h-10 px-3 rounded-lg bg-ink-900 border border-line text-text-primary focus:outline-none focus:ring-2 focus:ring-signal-500/40"
         >
           <option value="">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
+          <option value="solicitada">Solicitada</option>
+          <option value="facturada">Facturada</option>
           <option value="pagada">Pagada</option>
           <option value="cancelada">Cancelada</option>
         </select>
@@ -89,7 +94,7 @@ export default function FacturasPage() {
               <tr className="border-b border-line">
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase text-text-muted">Folio</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase text-text-muted">Cliente</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase text-text-muted">Cotización</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase text-text-muted">Origen</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold uppercase text-text-muted">Total</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold uppercase text-text-muted">Vence</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold uppercase text-text-muted">Estado</th>
@@ -98,11 +103,17 @@ export default function FacturasPage() {
             <tbody className="divide-y divide-line">
               {invoices.map((inv) => {
                 const overdue = inv.overdue
+                const clientName = inv.quotation?.client.businessName ?? inv.charge?.contract.client.businessName ?? "—"
+                const origin = inv.quotation
+                  ? inv.quotation.folio
+                  : inv.charge
+                  ? `${inv.charge.contract.name} · ${String(inv.charge.periodMonth).padStart(2, "0")}/${inv.charge.periodYear}`
+                  : "—"
                 return (
                   <tr key={inv.id} className="hover:bg-ink-850 transition-colors cursor-pointer" onClick={() => window.location.href = `/facturas/${inv.id}`}>
                     <td className="px-4 py-3 text-sm font-mono text-signal-400">{inv.folio}</td>
-                    <td className="px-4 py-3 text-sm text-text-primary">{inv.quotation.client.businessName}</td>
-                    <td className="px-4 py-3 text-sm text-text-muted">{inv.quotation.folio}</td>
+                    <td className="px-4 py-3 text-sm text-text-primary">{clientName}</td>
+                    <td className="px-4 py-3 text-sm text-text-muted">{origin}</td>
                     <td className="px-4 py-3 text-sm text-right font-mono">
                       ${Number(inv.total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                     </td>
@@ -112,7 +123,7 @@ export default function FacturasPage() {
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Badge variant={statusBadge[inv.status] || "gray"}>
-                          {inv.status === "pendiente" ? "Pendiente" : inv.status === "pagada" ? "Pagada" : "Cancelada"}
+                          {statusLabel[inv.status] || inv.status}
                         </Badge>
                         {overdue && <Badge variant="red">Vencida</Badge>}
                       </div>

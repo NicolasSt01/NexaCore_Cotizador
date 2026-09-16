@@ -46,6 +46,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/contratos",
+    label: "Contratos",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M6 2h5l3 3v13a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M7 11l1.5 1.5L11 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/facturas",
     label: "Facturas",
     icon: (

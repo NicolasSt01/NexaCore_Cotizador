@@ -33,7 +33,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     data: {
       quotationId: quotation.id,
       folio: invoiceFolio,
-      status: "pendiente",
+      status: "solicitada",
       dueDate: quotation.validUntil,
       subtotal: quotation.subtotal,
       iva: quotation.ivaAmount,
@@ -52,7 +52,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     userId: Number(session.user.id),
     fromStatus: "aprobada",
     toStatus: "convertida",
-    note: `Convertida a factura ${invoiceFolio}`,
+    note: `Factura ${invoiceFolio} solicitada al despacho`,
   })
 
   return NextResponse.json(invoice)

@@ -135,7 +135,9 @@ test("4. El detalle muestra el código QR y el enlace público", async ({ page }
   await login(page)
   await createDraft(page)
   await expect(page.getByText("Compartir cotización")).toBeVisible()
-  await expect(page.locator('img[alt="QR"]')).toBeVisible()
+  // El PDF oculto ("#pdf-print-content") también incrusta un QR; el del detalle
+  // es la imagen "rounded-lg" del bloque "Compartir cotización".
+  await expect(page.locator('img.rounded-lg[alt="QR"]')).toBeVisible()
   const url = await page.locator("input[readonly]").inputValue()
   expect(url).toContain("/publica/")
 })
@@ -150,7 +152,7 @@ test("5. Admin marca una cotización como enviada", async ({ page }) => {
 })
 
 // 6 ─────────────────────────────────────────────────────────────────────────
-test("6. Admin aprueba y aparece 'Convertir a factura'", async ({ page }) => {
+test("6. Admin aprueba y aparece 'Solicitar factura'", async ({ page }) => {
   await login(page)
   await createDraft(page)
   await page.getByRole("button", { name: "Marcar como enviada" }).click()
@@ -158,7 +160,7 @@ test("6. Admin aprueba y aparece 'Convertir a factura'", async ({ page }) => {
   await page.getByRole("button", { name: "Aprobar" }).click()
   await expect(page.getByText("Aprobada", { exact: true })).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Convertir a factura" })
+    page.getByRole("button", { name: "Solicitar factura" })
   ).toBeVisible()
 })
 
@@ -183,7 +185,7 @@ test("8. Admin puede cancelar incluso una cotización aprobada", async ({ page }
   await page.getByRole("button", { name: "Cancelar" }).click()
   await expect(page.getByText("Cancelada", { exact: true })).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Convertir a factura" })
+    page.getByRole("button", { name: "Solicitar factura" })
   ).toHaveCount(0)
 })
 

@@ -67,10 +67,10 @@ model Quotation {
   status          String           @default("borrador")
   issueDate       DateTime         @default(now()) @map("issue_date")
   validUntil      DateTime?        @map("valid_until")
-  paymentTerms    String?          @map("payment_terms")
-  deliveryTerms   String?          @map("delivery_terms")
-  notes           String?
-  termsConditions String?          @map("terms_conditions")
+  paymentTerms    String?          @db.Text @map("payment_terms")
+  deliveryTerms   String?          @db.Text @map("delivery_terms")
+  notes           String?          @db.Text
+  termsConditions String?          @db.Text @map("terms_conditions")
   subtotal        Decimal          @default(0) @db.Decimal(14, 2)
   discountPercent Decimal          @default(0) @db.Decimal(5, 2) @map("discount_percent")
   discountAmount  Decimal          @default(0) @db.Decimal(14, 2) @map("discount_amount")
@@ -272,8 +272,8 @@ model CompanySettings {
   ivaRate           Decimal  @default(0.16) @db.Decimal(5, 4) @map("iva_rate")
   isrRetencionRate  Decimal  @default(0.10) @db.Decimal(5, 4) @map("isr_retencion_rate")
   ivaRetencionRate  Decimal  @default(0.106666) @db.Decimal(8, 6) @map("iva_retencion_rate")
-  defaultTerms      String?  @map("default_terms")
-  defaultNotes      String?  @map("default_notes")
+  defaultTerms      String?  @db.Text @map("default_terms")
+  defaultNotes      String?  @db.Text @map("default_notes")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 

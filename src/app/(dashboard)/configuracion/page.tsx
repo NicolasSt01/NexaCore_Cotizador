@@ -167,8 +167,8 @@ export default function ConfiguracionPage() {
         setMessage({ type: "ok", text: "Configuración guardada." })
         load()
       } else {
-        const err = await res.json()
-        setMessage({ type: "error", text: err.error || "No se pudo guardar" })
+        const err = await res.json().catch(() => null)
+        setMessage({ type: "error", text: err?.error || `No se pudo guardar (${res.status})` })
       }
     } catch {
       setMessage({ type: "error", text: "Error de conexión" })

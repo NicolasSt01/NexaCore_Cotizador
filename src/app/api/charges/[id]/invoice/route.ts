@@ -27,11 +27,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "El cargo está en cero; captura el uso antes de facturar." }, { status: 400 })
   }
 
+  const folio = await generateFolio("F")
   const invoice = await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.create({
       data: {
         chargeId: charge.id,
-        folio: generateFolio("F"),
+        folio,
         status: "solicitada",
         subtotal: charge.subtotal,
         iva: charge.iva,

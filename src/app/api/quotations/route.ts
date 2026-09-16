@@ -64,9 +64,10 @@ export async function POST(req: Request) {
     applyIvaRetencion,
   })
 
+  const folio = await generateFolio()
   const quotation = await prisma.quotation.create({
     data: {
-      folio: generateFolio(),
+      folio,
       clientId: Number(data.clientId),
       publicHash: generatePublicHash(),
       userId: Number(session.user.id),

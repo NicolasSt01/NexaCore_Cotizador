@@ -27,7 +27,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Ya tiene una factura asociada" }, { status: 400 })
   }
 
-  const invoiceFolio = generateFolio("F")
+  const invoiceFolio = await generateFolio("F")
 
   const invoice = await prisma.invoice.create({
     data: {

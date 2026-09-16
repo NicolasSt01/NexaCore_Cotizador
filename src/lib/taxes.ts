@@ -122,9 +122,33 @@ export function calculateQuotationTotals(
   }
 }
 
-export function generateFolio(prefix: string = "COT", year: number = new Date().getFullYear()): string {
-  const random = Math.floor(Math.random() * 9000) + 1000
-  return `${prefix}-${year}-${random}`
+/**
+ * Folio consecutivo por año y prefijo: COT-2026-0001, COT-2026-0002…; las
+ * facturas usan F-2026-0001. Reinicia cada año. Toma el mayor folio existente de
+ * ese prefijo+año y le suma 1 (COT se busca en cotizaciones, F en facturas).
+ *
+ * Nota: con concurrencia muy alta dos altas simultáneas podrían calcular el
+ * mismo número; el índice único del folio haría fallar la segunda. Para el uso
+ * previsto (equipo pequeño) es suficiente.
+ */
+export async function generateFolio(
+  prefix: string = "COT",
+  year: number = new Date().getFullYear()
+): Promise<string> {
+  const like = `${prefix}-${year}-`
+
+  const folios =
+    prefix === "F"
+      ? (await prisma.invoice.findMany({ where: { folio: { startsWith: like } }, select: { folio: true } })).map((r) => r.folio)
+      : (await prisma.quotation.findMany({ where: { folio: { startsWith: like } }, select: { folio: true } })).map((r) => r.folio)
+
+  let max = 0
+  for (const f of folios) {
+    const n = parseInt(f.slice(like.length), 10)
+    if (!Number.isNaN(n) && n > max) max = n
+  }
+
+  return `${prefix}-${year}-${String(max + 1).padStart(4, "0")}`
 }
 
 export { RFC_PUBLICO_GENERAL, RFC_EXTRANJERO } from "@/types"

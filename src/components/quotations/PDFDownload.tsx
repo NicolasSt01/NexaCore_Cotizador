@@ -319,7 +319,7 @@ export function PDFDownload({
             </tbody>
           </table>
 
-          {(quotation.notes || quotation.termsConditions || quotation.paymentTerms) && (
+          {(quotation.notes || quotation.termsConditions || quotation.paymentTerms || quotation.deliveryTerms) && (
             <>
               <hr style={{ border: "none", borderTop: "1px solid #DFE3EA", margin: "20px 0 12px" }} />
               {quotation.paymentTerms && (
@@ -338,6 +338,12 @@ export function PDFDownload({
                 <div style={{ marginTop: "8px" }}>
                   <div style={{ fontWeight: 600, color: "#006C99", marginBottom: "2px" }}>Notas</div>
                   <div style={{ color: "#5C6B84", whiteSpace: "pre-wrap" }}>{quotation.notes}</div>
+                </div>
+              )}
+              {quotation.termsConditions && (
+                <div style={{ marginTop: "8px" }}>
+                  <div style={{ fontWeight: 600, color: "#006C99", marginBottom: "2px" }}>Términos y condiciones</div>
+                  <div style={{ color: "#5C6B84", whiteSpace: "pre-wrap" }}>{quotation.termsConditions}</div>
                 </div>
               )}
             </>

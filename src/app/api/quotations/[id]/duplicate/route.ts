@@ -38,9 +38,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     applyIvaRetencion: source.applyIvaRetencion,
   })
 
+  const folio = await generateFolio()
   const clone = await prisma.quotation.create({
     data: {
-      folio: generateFolio(),
+      folio,
       clientId: source.clientId,
       publicHash: generatePublicHash(),
       userId: Number(session.user.id),

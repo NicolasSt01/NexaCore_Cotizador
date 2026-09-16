@@ -22,6 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           lines: { orderBy: { id: "asc" } },
         },
       },
+      payments: { orderBy: { paidAt: "asc" } },
     },
   })
 

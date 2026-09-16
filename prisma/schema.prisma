@@ -156,8 +156,23 @@ model Invoice {
   createdAt     DateTime   @default(now()) @map("created_at")
   quotation     Quotation? @relation(fields: [quotationId], references: [id])
   charge        Charge?    @relation(fields: [chargeId], references: [id])
+  payments      Payment[]
 
   @@map("invoices")
+}
+
+/** Abono (pago parcial o total) aplicado a una factura. */
+model Payment {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @map("invoice_id")
+  amount    Decimal  @db.Decimal(14, 2)
+  paidAt    DateTime @default(now()) @map("paid_at")
+  method    String?
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }
 
 /**

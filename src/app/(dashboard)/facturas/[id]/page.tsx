@@ -26,6 +26,7 @@ interface InvoiceDetail {
   invoicedAt: string | null
   cfdiPdfKey: string | null
   cfdiXmlKey: string | null
+  payments: { id: number; amount: string; paidAt: string; method: string | null; note: string | null }[]
   quotation?: {
     folio: string
     paymentTerms?: string | null
@@ -70,6 +71,9 @@ const STATUS_LABEL: Record<string, string> = {
   solicitada: "Solicitada", pendiente: "Solicitada", facturada: "Facturada", pagada: "Pagada", cancelada: "Cancelada",
 }
 
+// Momento de carga, calculado una sola vez para no llamar Date durante el render.
+const NOW_TS = Date.now()
+
 export default function FacturaDetallePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -82,6 +86,9 @@ export default function FacturaDetallePage() {
   const [metodoDraft, setMetodoDraft] = useState("")
   const [uuidDraft, setUuidDraft] = useState("")
   const [copied, setCopied] = useState(false)
+  const [abonoAmount, setAbonoAmount] = useState("")
+  const [abonoDate, setAbonoDate] = useState("")
+  const [abonoMethod, setAbonoMethod] = useState("")
   const pdfRef = useRef<HTMLInputElement>(null)
   const xmlRef = useRef<HTMLInputElement>(null)
 
@@ -90,7 +97,7 @@ export default function FacturaDetallePage() {
     setData(d)
     setOverdue(
       d.status !== "pagada" && d.status !== "cancelada" && d.dueDate
-        ? new Date(d.dueDate).getTime() < Date.now()
+        ? new Date(d.dueDate).getTime() < NOW_TS
         : false
     )
     if (d.dueDate) setDueDraft(new Date(d.dueDate).toISOString().slice(0, 10))
@@ -142,6 +149,28 @@ export default function FacturaDetallePage() {
     setUpdating(false)
   }
 
+  async function registrarAbono(amount: number) {
+    if (!amount || amount <= 0) { alert("Captura un importe válido."); return }
+    setUpdating(true)
+    const r = await fetch(`/api/invoices/${id}/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, paidAt: abonoDate || undefined, method: abonoMethod || undefined }),
+    })
+    if (r.ok) { setAbonoAmount(""); setAbonoDate(""); setAbonoMethod(""); await load() }
+    else alert((await r.json()).error || "No se pudo registrar el abono")
+    setUpdating(false)
+  }
+
+  async function eliminarAbono(paymentId: number) {
+    if (!confirm("¿Eliminar este abono?")) return
+    setUpdating(true)
+    const r = await fetch(`/api/invoices/${id}/payments/${paymentId}`, { method: "DELETE" })
+    if (r.ok) await load()
+    else alert((await r.json()).error || "No se pudo eliminar")
+    setUpdating(false)
+  }
+
   if (loading) return <p className="text-text-muted py-12 text-center">Cargando...</p>
   if (!data) return <p className="text-text-muted py-12 text-center">No encontrada</p>
 
@@ -154,6 +183,8 @@ export default function FacturaDetallePage() {
   const isPaid = data.status === "pagada"
   const isFacturada = data.status === "facturada"
   const isSolicitada = data.status === "solicitada" || data.status === "pendiente"
+  const paidAmount = data.payments.reduce((s, p) => s + Number(p.amount), 0)
+  const balance = Math.max(0, Number(data.total) - paidAmount)
 
   // Texto que se copia para pegárselo al despacho.
   const despachoText = [
@@ -204,16 +235,6 @@ export default function FacturaDetallePage() {
 
       {/* Acciones según el ciclo */}
       <div className="flex flex-wrap gap-3">
-        {isFacturada && (
-          <Button onClick={() => act("pay", "¿Registrar esta factura como pagada?")} disabled={updating}>
-            Marcar como pagada
-          </Button>
-        )}
-        {isPaid && (
-          <Button variant="secondary" onClick={() => act("reopen", "¿Reabrir la factura?")} disabled={updating}>
-            Reabrir
-          </Button>
-        )}
         {(isFacturada || isPaid) && data.cfdiPdfKey && (
           <a href={`/api/invoices/${id}/cfdi/pdf`}>
             <Button variant="secondary" disabled={updating}>Descargar CFDI (PDF)</Button>
@@ -333,6 +354,56 @@ export default function FacturaDetallePage() {
         </Card>
       )}
 
+      {/* Cobranza / abonos */}
+      {(isFacturada || isPaid) && (
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-text-muted uppercase font-semibold">Cobranza / abonos</p>
+            <span className="text-sm text-text-muted">
+              Saldo: <span className={`font-mono ${balance <= 0 ? "text-text-muted" : "text-signal-400"}`}>{money(balance)}</span>
+            </span>
+          </div>
+
+          {data.payments.length > 0 && (
+            <div className="space-y-1 mb-3">
+              {data.payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm border-b border-line pb-1">
+                  <span className="text-text-secondary">
+                    {new Date(p.paidAt).toLocaleDateString("es-MX")}{p.method ? ` · ${p.method}` : ""}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="font-mono text-text-primary">{money(p.amount)}</span>
+                    <button onClick={() => eliminarAbono(p.id)} disabled={updating} className="text-text-muted hover:text-red transition-colors" title="Eliminar abono">✕</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {balance > 0 ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-32">
+                <Input label="Importe" type="number" step="0.01" min="0" value={abonoAmount} onChange={(e) => setAbonoAmount(e.target.value)} />
+              </div>
+              <div className="w-40">
+                <Input label="Fecha" type="date" value={abonoDate} onChange={(e) => setAbonoDate(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5 w-48">
+                <label className="text-sm font-medium text-text-secondary">Forma</label>
+                <select value={abonoMethod} onChange={(e) => setAbonoMethod(e.target.value)} className="h-10 px-3 rounded-lg bg-ink-900 border border-line text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-signal-500/40">
+                  <option value="">—</option>
+                  {FORMAS_PAGO.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <Button variant="secondary" disabled={updating} onClick={() => registrarAbono(Number(abonoAmount))}>Registrar abono</Button>
+              <Button disabled={updating} onClick={() => registrarAbono(balance)}>Pagar saldo ({money(balance)})</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-text-secondary">✓ Factura pagada por completo.</p>
+          )}
+        </Card>
+      )}
+
       {/* Vencimiento */}
       <Card>
         <p className="text-xs text-text-muted uppercase font-semibold mb-3">Vencimiento</p>
@@ -387,10 +458,16 @@ export default function FacturaDetallePage() {
             <span className="text-text-primary">Total</span>
             <span className="font-mono text-signal-400">{money(data.total)}</span>
           </div>
+          {paidAmount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Pagado</span>
+              <span className="font-mono text-text-secondary">-{money(paidAmount)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm pt-2">
             <span className="text-text-muted">Saldo</span>
-            <span className={`font-mono ${isPaid ? "text-text-muted" : "text-text-primary"}`}>
-              {isPaid ? "Pagado" : money(data.total)}
+            <span className={`font-mono ${balance <= 0 ? "text-text-muted" : "text-text-primary"}`}>
+              {balance <= 0 ? "Pagado" : money(balance)}
             </span>
           </div>
         </div>

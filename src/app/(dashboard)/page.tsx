@@ -74,7 +74,41 @@ async function getDashboardData() {
     count: data.count,
   }))
 
+  // ── Métricas financieras ──────────────────────────────────────────────
+  // MRR: fee fijo mensual de los contratos activos.
+  const fixedAgg = await prisma.contractItem.aggregate({
+    _sum: { unitPrice: true },
+    where: { kind: "fijo", active: true, contract: { status: "activo" } },
+  })
+  const mrr = Number(fixedAgg._sum.unitPrice || 0)
+
+  // Cuentas por cobrar: saldo de facturas ya facturadas y no saldadas.
+  const receivables = await prisma.invoice.findMany({
+    where: { status: "facturada" },
+    select: { total: true, dueDate: true, payments: { select: { amount: true } } },
+  })
+  const now = new Date()
+  let porCobrar = 0
+  let vencido = 0
+  for (const inv of receivables) {
+    const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0)
+    const bal = Number(inv.total) - paid
+    if (bal > 0) {
+      porCobrar += bal
+      if (inv.dueDate && inv.dueDate < now) vencido += bal
+    }
+  }
+
+  // Cobrado en el mes en curso (suma de abonos).
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const paidAgg = await prisma.payment.aggregate({ _sum: { amount: true }, where: { paidAt: { gte: startMonth } } })
+  const cobradoMes = Number(paidAgg._sum.amount || 0)
+
   return {
+    mrr,
+    porCobrar: Math.round(porCobrar * 100) / 100,
+    vencido: Math.round(vencido * 100) / 100,
+    cobradoMes,
     quotations,
     activeCount,
     totalQuotations,
@@ -130,6 +164,32 @@ export default async function DashboardPage() {
           <p className="text-3xl font-semibold text-text-primary mt-1">
             ${Number(data.totalRevenue).toLocaleString("es-MX")}
           </p>
+        </Card>
+      </div>
+
+      {/* Finanzas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card padding="md">
+          <p className="text-sm text-text-muted">Ingreso recurrente (MRR)</p>
+          <p className="text-3xl font-semibold text-signal-400 mt-1">${Number(data.mrr).toLocaleString("es-MX")}</p>
+          <p className="text-xs text-text-muted mt-1">fijo mensual de contratos activos</p>
+        </Card>
+        <Card padding="md">
+          <p className="text-sm text-text-muted">Por cobrar</p>
+          <p className="text-3xl font-semibold text-text-primary mt-1">${Number(data.porCobrar).toLocaleString("es-MX")}</p>
+          <p className="text-xs text-text-muted mt-1">saldo de facturas emitidas</p>
+        </Card>
+        <Card padding="md">
+          <p className="text-sm text-text-muted">Vencido</p>
+          <p className={`text-3xl font-semibold mt-1 ${Number(data.vencido) > 0 ? "text-red" : "text-text-primary"}`}>
+            ${Number(data.vencido).toLocaleString("es-MX")}
+          </p>
+          <p className="text-xs text-text-muted mt-1">facturas pasadas de fecha</p>
+        </Card>
+        <Card padding="md">
+          <p className="text-sm text-text-muted">Cobrado este mes</p>
+          <p className="text-3xl font-semibold text-text-primary mt-1">${Number(data.cobradoMes).toLocaleString("es-MX")}</p>
+          <p className="text-xs text-text-muted mt-1">abonos recibidos</p>
         </Card>
       </div>
 
